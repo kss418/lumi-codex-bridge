@@ -11,7 +11,7 @@ Little LUMI(꼬미)를 Codex와 연결하는 비공식 모드입니다.
 
 ## 설치
 
-Windows 11, Little LUMI와 로그인된 Codex가 필요합니다. Python이 없으면 설치 스크립트가 모드 전용으로 자동 설치합니다.
+Windows 11, Little LUMI와 로그인된 Codex가 필요합니다.
 꼬미를 종료한 뒤 **Win + R → `cmd` 입력 → Enter**로 명령 프롬프트를 여세요. 아래 명령 한 줄을 복사해 **CMD 창에 붙여넣고 Enter**를 누르면 다운로드와 설치가 진행됩니다.
 
 ```cmd
