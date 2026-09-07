@@ -25,6 +25,7 @@ public final class SettingsWindow extends JFrame {
         tabs.addTab("모델 설정",scroll(model));
         tabs.addTab("페르소나 설정",personas(context));
         tabs.addTab("TTS 설정",scroll(tts));
+        tabs.addTab("대화 기록",new HistoryPanel(context,voice));
         root.add(tabs,BorderLayout.CENTER);
         JButton close=new JButton("닫기");close.addActionListener(event->dispose());
         JPanel footer=new JPanel(new FlowLayout(FlowLayout.RIGHT));footer.add(close);root.add(footer,BorderLayout.SOUTH);

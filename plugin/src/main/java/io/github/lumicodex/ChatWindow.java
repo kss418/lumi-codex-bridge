@@ -133,9 +133,11 @@ public final class ChatWindow extends JDialog {
     private void submit(String text, boolean inspectScreen, boolean automatic) {
         if(text.isEmpty() || (worker!=null && !worker.isDone())) return;
         final String persona;
-        try { persona = new PersonaStore(context).effective(imageSet); }
+        final ConversationStore.Snapshot history;
+        ConversationStore records=new ConversationStore(context);
+        try { persona = new PersonaStore(context).effective(imageSet); history=records.snapshot(imageSet); }
         catch (Exception error) {
-            status.setText("페르소나를 읽지 못했습니다."); status.setToolTipText(error.getMessage());
+            status.setText("페르소나 또는 대화 기록을 읽지 못했습니다."); status.setToolTipText(error.getMessage());
             context.log().warning(error.toString()); return;
         }
         String model=context.prefs().get("model",""); String effort=context.prefs().get("effort","");
@@ -154,14 +156,16 @@ public final class ChatWindow extends JDialog {
         worker=new SwingWorker<>() {
             protected String doInBackground() throws Exception {
                 String image=inspectScreen?DesktopCapture.capture(captureAnchor):null;
-                return current.chat(text,model,effort,persona,image);
+                return current.chat(text,model,effort,persona,image,history);
             }
             protected void done() {
                 if(disposed || isCancelled()) return;
                 try {
                     String reply=ScreenReaction.visibleReply(get(),automatic);
                     // Show voiced replies when playback starts; text-only replies remain immediate.
-                    if(!reply.isBlank()) {
+                    if(!reply.isBlank() && records.current(imageSet,history.session())) {
+                        try {records.append(imageSet,history.session(),inspectScreen?"[화면 같이 보기]":text,reply);}
+                        catch(java.io.IOException error){context.log().warning("대화 기록 저장 실패: "+error);status.setToolTipText("답변은 생성했지만 기록 저장에 실패했습니다.");}
                         if(inspectScreen)voice.screenReply(reply,imageSet,mascotId);
                         else voice.reply(reply,imageSet,mascotId);
                     }

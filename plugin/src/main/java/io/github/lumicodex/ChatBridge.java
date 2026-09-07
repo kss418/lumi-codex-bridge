@@ -86,11 +86,15 @@ public final class ChatBridge implements AutoCloseable {
     }
 
     public synchronized String chat(String text, String selectedModel, String effort, String persona, String image) throws Exception {
+        return chat(text,selectedModel,effort,persona,image,null);
+    }
+    public synchronized String chat(String text, String selectedModel, String effort, String persona, String image,ConversationStore.Snapshot history) throws Exception {
         try {
             if (process.get() == null) start(selectedModel);
             if (!Objects.equals(model, selectedModel)) throw new IOException("모델 설정이 변경됐습니다. 대화창을 닫고 다시 열어 새 대화를 시작해 주세요.");
             long id = ++nextId;
             Map<String,Object> params = new LinkedHashMap<>(); params.put("text", text); params.put("persona", persona);
+            if(history!=null){params.put("conversation",history.session());params.put("history",history.turns());}
             if (image != null) params.put("image", image);
             if (!selectedModel.isBlank()) params.put("model", selectedModel);
             if (!effort.isBlank()) params.put("effort", effort);
