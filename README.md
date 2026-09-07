@@ -12,6 +12,7 @@ Little LUMI(꼬미)를 Codex와 연결하는 비공식 모드입니다.
 ## 설치
 
 Windows 11, Little LUMI와 로그인된 Codex가 필요합니다.
+
 꼬미를 종료한 뒤 CMD에 아래 명령 한 줄을 복사해 **CMD 창에 붙여넣고 Enter**를 누르면 다운로드와 설치가 진행됩니다.
 
 ```cmd
