@@ -22,10 +22,12 @@ public final class ChatWindow extends JDialog {
     private SwingWorker<String,Void> worker;
     private boolean everFocused;
     private boolean disposed;
+    private boolean cancelPending;
+    private final Runnable onStateChanged;
 
-    public ChatWindow(PluginContext context, String imageSet, int mascotId, Runnable openSettings) {
+    public ChatWindow(PluginContext context, String imageSet, int mascotId, Runnable openSettings, Runnable onStateChanged) {
         super((Frame)null, false);
-        this.context=context; this.imageSet=imageSet; this.mascotId=mascotId;
+        this.context=context; this.imageSet=imageSet; this.mascotId=mascotId; this.onStateChanged=onStateChanged;
         setUndecorated(true); setAlwaysOnTop(true); setDefaultCloseOperation(HIDE_ON_CLOSE);
         JPanel panel=new JPanel(new GridBagLayout());
         panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(context.theme().line()), BorderFactory.createEmptyBorder(8,10,8,10)));
@@ -36,7 +38,7 @@ public final class ChatWindow extends JDialog {
         settings.addActionListener(event -> { setVisible(false); openSettings.run(); });
         input.setFont(context.theme().font("",18f)); input.setPreferredSize(new Dimension(260,34));
         context.theme().style(input,"arc: 999; margin: 3,12,3,12");
-        Dimension buttonSize=new Dimension(Math.max(76,Math.max(settings.getPreferredSize().width,send.getPreferredSize().width)),34);
+        Dimension buttonSize=new Dimension(Math.max(90,Math.max(settings.getPreferredSize().width,send.getPreferredSize().width)),34);
         settings.setPreferredSize(buttonSize); send.setPreferredSize(buttonSize);
         send.setFocusable(false); send.setEnabled(false);
 
@@ -56,7 +58,7 @@ public final class ChatWindow extends JDialog {
         panel.add(status,c);
         setContentPane(panel); pack();
         try { setShape(new RoundRectangle2D.Double(0,0,getWidth(),getHeight(),18,18)); } catch (UnsupportedOperationException ignored) { }
-        send.addActionListener(event -> submit()); input.addActionListener(event -> submit());
+        send.addActionListener(event -> { if (worker!=null && !worker.isDone()) cancelGeneration(); else submit(); }); input.addActionListener(event -> submit());
         input.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent event) { syncSend(); }
             public void removeUpdate(DocumentEvent event) { syncSend(); }
@@ -73,7 +75,30 @@ public final class ChatWindow extends JDialog {
         });
     }
 
-    private void syncSend() { send.setEnabled(!input.getText().isBlank() && (worker==null || worker.isDone())); }
+    private void syncSend() {
+        boolean busy=worker!=null && !worker.isDone();
+        send.setText(busy ? "생성 취소" : "보내기");
+        send.setEnabled(busy ? !cancelPending : !input.getText().isBlank());
+        onStateChanged.run();
+    }
+
+    public boolean canCancel() { return !disposed && !cancelPending && worker!=null && !worker.isDone(); }
+
+    public void cancelGeneration() {
+        if (!canCancel()) return;
+        cancelPending=true;
+        onStateChanged.run();
+        ChatBridge current=bridge;
+        if(current==null) return;
+        send.setEnabled(false); status.setText("취소하고 있습니다…");
+        Thread.startVirtualThread(() -> {
+            try { current.cancel(); }
+            catch (Exception error) {
+                context.log().warning(error.toString());
+                SwingUtilities.invokeLater(() -> { if(!disposed) { status.setText("취소 요청에 실패했습니다."); cancelPending=false; syncSend(); } });
+            }
+        });
+    }
 
     public void showNearMascot() {
         var mascot=context.mascotById(mascotId);
@@ -87,12 +112,18 @@ public final class ChatWindow extends JDialog {
         int x=anchor==null?area.x+(area.width-getWidth())/2:anchor.x-getWidth()/2;
         int y=anchor==null?area.y+(area.height-getHeight())/2:anchor.y-getHeight()-24;
         setLocation(Math.max(area.x,Math.min(x,area.x+area.width-getWidth())),Math.max(area.y,Math.min(y,area.y+area.height-getHeight())));
+        syncSend();
         everFocused=false; setVisible(true); toFront();
         SwingUtilities.invokeLater(() -> input.requestFocusInWindow());
     }
 
-    private void submit() {
-        String text=input.getText().strip();
+    private void submit() { submit(input.getText().strip(), false); }
+
+    public void inspectDesktop() {
+        submit("이 화면에 무엇이 보이는지 짧게 알려주고, 지금 상황에 자연스럽게 한마디 해줘. 보이지 않는 내용은 지어내지 마.", true);
+    }
+
+    private void submit(String text, boolean inspectScreen) {
         if(text.isEmpty() || (worker!=null && !worker.isDone())) return;
         final String persona;
         try { persona = new PersonaStore(context).effective(imageSet); }
@@ -105,12 +136,19 @@ public final class ChatWindow extends JDialog {
             if(bridge!=null) bridge.close();
             bridge=new ChatBridge(line -> context.log().info(line)); selectedModel=model; selectedEffort=effort;
         }
+        var mascot=context.mascotById(mascotId);
+        Point captureAnchor=mascot==null?null:new Point(mascot.anchor());
         ChatBridge current=bridge;
+        cancelPending=false;
+        current.prepareTurn();
         input.setText(""); input.setEnabled(false); send.setEnabled(false); setVisible(false);
         status.setText("답변을 준비하고 있습니다…");
         context.showBusyFor(mascotId,"생각 중…");
         worker=new SwingWorker<>() {
-            protected String doInBackground() throws Exception { return current.chat(text,model,effort,persona); }
+            protected String doInBackground() throws Exception {
+                String image=inspectScreen?DesktopCapture.capture(captureAnchor):null;
+                return current.chat(text,model,effort,persona,image);
+            }
             protected void done() {
                 if(disposed || isCancelled()) return;
                 try {
@@ -120,6 +158,11 @@ public final class ChatWindow extends JDialog {
                 } catch(CancellationException ignored) {
                 } catch(Exception error) {
                     Throwable cause=error.getCause()==null?error:error.getCause();
+                    if (cause instanceof ChatBridge.Cancelled) {
+                        status.setText("생성을 취소했습니다.");
+                        if(context.mascotById(mascotId)!=null) context.sayTo(mascotId,imageSet,"생성을 취소했어요.",3000L);
+                        input.setEnabled(true); syncSend(); return;
+                    }
                     context.log().warning(cause.toString()); current.close(); bridge=null;
                     status.setText("연결에 실패했습니다. 다시 보내 주세요."); status.setToolTipText(cause.getMessage());
                     if(context.mascotById(mascotId)!=null) context.sayTo(mascotId,imageSet,"답변을 받지 못했어요. 다시 말 걸어 주세요.",8000L);
@@ -128,6 +171,7 @@ public final class ChatWindow extends JDialog {
             }
         };
         worker.execute();
+        syncSend();
     }
 
     @Override public void dispose() {
@@ -135,6 +179,7 @@ public final class ChatWindow extends JDialog {
         if(bridge!=null) bridge.close();
         if(worker!=null) worker.cancel(true);
         super.dispose();
+        onStateChanged.run();
     }
 }
 

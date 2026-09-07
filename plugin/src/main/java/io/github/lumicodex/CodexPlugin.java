@@ -13,6 +13,8 @@ public final class CodexPlugin implements LumiPlugin {
     private PluginUi.MenuHandle trayItem;
     private PluginUi.MenuHandle settingsButton;
     private PluginUi.MenuHandle chatItem;
+    private PluginUi.MenuHandle cancelItem;
+    private PluginUi.MenuHandle desktopItem;
     private PluginUi.MenuHandle personaItem;
     private final java.util.Map<String, PersonaWindow> personas = new java.util.HashMap<>();
 
@@ -24,7 +26,35 @@ public final class CodexPlugin implements LumiPlugin {
         settingsButton = context.addSettingsButton("Codex 모델 설정", this::openSettings);
         chatItem = context.addCharacterMenuItem("대화하기", context::isCharacter,
                 this::openChat);
+        cancelItem = context.addCharacterMenuItem("생성 취소", context::isCharacter, (imageSet, mascotId) -> {
+            PluginContext active = this.context;
+            if (active != null) active.onEdt(() -> {
+                ChatWindow chat = chats.get(mascotId);
+                if (chat != null) chat.cancelGeneration();
+            });
+        });
+        cancelItem.setEnabled(false);
+        desktopItem = context.addCharacterMenuItem("바탕화면 보기", context::isCharacter, this::inspectDesktop);
         context.log().info("Lumi Codex settings plugin started.");
+    }
+
+    private void refreshCancelMenu() {
+        if (cancelItem != null && !cancelItem.removed())
+            cancelItem.setEnabled(chats.values().stream().anyMatch(ChatWindow::canCancel));
+    }
+
+    private void inspectDesktop(String imageSet, Integer mascotId) {
+        PluginContext active = context;
+        if (active == null) return;
+        active.onEdt(() -> {
+            if (context != active) return;
+            ChatWindow chat = chats.get(mascotId);
+            if (chat == null || !chat.isDisplayable()) {
+                chat = new ChatWindow(active, imageSet, mascotId, this::openSettings, this::refreshCancelMenu);
+                chats.put(mascotId, chat);
+            }
+            chat.inspectDesktop();
+        });
     }
 
     private void openChat(String imageSet, Integer mascotId) {
@@ -34,7 +64,7 @@ public final class CodexPlugin implements LumiPlugin {
             if (context != active) return;
             ChatWindow chat = chats.get(mascotId);
             if (chat == null || !chat.isDisplayable()) {
-                chat = new ChatWindow(active, imageSet, mascotId, this::openSettings);
+                chat = new ChatWindow(active, imageSet, mascotId, this::openSettings, this::refreshCancelMenu);
                 chats.put(mascotId, chat);
             }
             chat.showNearMascot();
@@ -103,6 +133,8 @@ public final class CodexPlugin implements LumiPlugin {
         if (trayItem != null) trayItem.remove();
         if (settingsButton != null) settingsButton.remove();
         if (chatItem != null) chatItem.remove();
+        if (cancelItem != null) cancelItem.remove();
+        if (desktopItem != null) desktopItem.remove();
         if (personaItem != null) personaItem.remove();
         active.onEdt(() -> { personas.values().forEach(PersonaWindow::dispose); personas.clear(); chats.values().forEach(ChatWindow::dispose); chats.clear(); if (window != null) { window.dispose(); window = null; } });
         active.log().info("Lumi Codex settings plugin stopped.");

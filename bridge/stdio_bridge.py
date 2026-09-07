@@ -3,7 +3,7 @@ import json
 import queue
 import threading
 import sys
-from codex_client import CodexClient, CodexError
+from codex_client import CodexClient, CodexError, GenerationCancelled, validate_image
 
 
 class ProtocolError(ValueError):
@@ -21,7 +21,7 @@ class StdioSession:
         self.persona = ""
         self.stop = False
 
-    def dispatch(self, method, params):
+    def dispatch(self, method, params, cancel_event=None):
         if method == "shutdown":
             self.stop = True
             return {"stopping": True}
@@ -36,6 +36,9 @@ class StdioSession:
         text = params.get("text")
         if not isinstance(text, str) or not text.strip():
             raise ProtocolError(-32602, "params.text must be a non-empty string")
+        image = params.get("image")
+        if image is not None:
+            validate_image(image)
         persona = params.get("persona", self.persona)
         if not isinstance(persona, str) or len(persona) > 20000:
             raise ProtocolError(-32602, "params.persona must be a string of at most 20000 characters")
@@ -53,53 +56,96 @@ class StdioSession:
             self.thread_id = self.client.start_thread(**options)
             self.model = model
             self.persona = persona
-        answer = self.client.send_message(self.thread_id, text, effort=effort)
+        try:
+            options = {"effort": effort}
+            if cancel_event is not None:
+                options["cancel_event"] = cancel_event
+            if image is not None:
+                options["image"] = image
+            answer = self.client.send_message(self.thread_id, text, **options)
+        except GenerationCancelled:
+            return {"text": "", "cancelled": True, "thread_id": self.thread_id}
         self.effort = effort
         return {"text": answer, "thread_id": self.thread_id}
 
 
 def serve_lines(session, source, sink, *, queue_size=64):
-    """Receive ahead on one thread; only this caller executes Codex requests.
-
-    A bounded FIFO applies backpressure instead of dropping accepted requests.
-    shutdown drains earlier requests; it does not cancel an active generation.
-    """
+    """One Codex worker; input-thread cancellation bypasses the chat FIFO."""
     if queue_size < 1:
         raise ValueError("queue_size must be positive")
     pending = queue.Queue(maxsize=queue_size)
     stopped = threading.Event()
+    registry = {}
+    guard = threading.Lock()
+    output_lock = threading.Lock()
     eof = object()
 
-    def enqueue(value):
-        while not stopped.is_set():
-            try:
-                pending.put(value, timeout=0.1)
-                return True
-            except queue.Full:
-                continue
-        return False
+    def emit(message):
+        with output_lock:
+            sink.write(json.dumps(message, ensure_ascii=False) + "\n")
+            sink.flush()
+
+    def envelope(item):
+        return (isinstance(item, dict) and isinstance(item.get("id"), (str, int))
+                and not isinstance(item.get("id"), bool)
+                and isinstance(item.get("method"), str)
+                and isinstance(item.get("params", {}), dict))
 
     def read_input():
         try:
             for line in source:
-                if not enqueue(line):
+                if stopped.is_set():
                     return
-                # Do not consume more input after a valid shutdown envelope.
-                # Full parsing and all state changes remain on the worker side.
                 try:
                     item = json.loads(line)
-                    if (isinstance(item, dict)
-                            and isinstance(item.get("id"), (str, int))
-                            and not isinstance(item.get("id"), bool)
-                            and item.get("method") == "shutdown"
-                            and isinstance(item.get("params", {}), dict)):
-                        break
-                except (ValueError, TypeError):
-                    pass
+                except ValueError:
+                    item = None
+                valid = envelope(item)
+                if valid and item["method"] == "cancel":
+                    target = item.get("params", {}).get("request_id")
+                    if isinstance(target, bool) or not isinstance(target, (str, int)):
+                        emit({"id": item["id"], "error": {"code": -32602, "message": "params.request_id must identify a chat request"}})
+                        continue
+                    with guard:
+                        token = registry.get(target)
+                        if token is not None:
+                            token.set()
+                    emit({"id": item["id"], "result": {"requested": token is not None, "request_id": target}})
+                    continue
+                token = None
+                if valid and item["method"] == "chat":
+                    with guard:
+                        duplicate = item["id"] in registry
+                        if not duplicate:
+                            token = threading.Event()
+                            registry[item["id"]] = token
+                    if duplicate:
+                        emit({"id": item["id"], "error": {"code": -32600, "message": "Chat request ID is already in use"}})
+                        continue
+                try:
+                    pending.put_nowait((line, token, item["id"] if token is not None else None))
+                except queue.Full:
+                    if token is not None:
+                        with guard:
+                            registry.pop(item["id"], None)
+                    emit({"id": item.get("id") if valid else None, "error": {"code": -32001, "message": "Request queue full; request was not accepted"}})
+                    continue
+                if valid and item["method"] == "shutdown":
+                    break
         except Exception as exc:
-            enqueue(exc)
+            while not stopped.is_set():
+                try:
+                    pending.put(exc, timeout=0.1)
+                    break
+                except queue.Full:
+                    pass
         finally:
-            enqueue(eof)
+            while not stopped.is_set():
+                try:
+                    pending.put(eof, timeout=0.1)
+                    break
+                except queue.Full:
+                    pass
 
     def queued_lines():
         while True:
@@ -108,24 +154,33 @@ def serve_lines(session, source, sink, *, queue_size=64):
                 return
             if isinstance(item, Exception):
                 raise item
-            yield item
+            line, token, request_id = item
+            try:
+                yield line, token
+            finally:
+                if token is not None:
+                    with guard:
+                        if registry.get(request_id) is token:
+                            registry.pop(request_id)
 
+    emit({"event": "ready", "protocol_version": 1})
     reader = threading.Thread(target=read_input, name="lumi-input", daemon=True)
     reader.start()
     try:
-        return _serve_lines(session, queued_lines(), sink)
+        return _serve_lines(session, queued_lines(), sink, emit=emit)
     finally:
         stopped.set()
         reader.join(timeout=1)
 
 
-def _serve_lines(session, source, sink):
-    def emit(message):
+def _serve_lines(session, source, sink, *, emit=None):
+    def default_emit(message):
         sink.write(json.dumps(message, ensure_ascii=False) + "\n")
         sink.flush()
 
-    emit({"event": "ready", "protocol_version": 1})
-    for line in source:
+    emit = emit or default_emit
+    for entry in source:
+        line, cancel_event = entry if isinstance(entry, tuple) else (entry, None)
         request_id = None
         try:
             try:
@@ -144,7 +199,10 @@ def _serve_lines(session, source, sink):
                 raise ProtocolError(-32600, "method must be a non-empty string")
             if not isinstance(params, dict):
                 raise ProtocolError(-32602, "params must be an object")
-            result = session.dispatch(method, params)
+            if cancel_event is not None and cancel_event.is_set():
+                result = {"text": "", "cancelled": True, "thread_id": session.thread_id}
+            else:
+                result = session.dispatch(method, params, cancel_event=cancel_event)
             emit({"id": request_id, "result": result})
         except ProtocolError as exc:
             emit({"id": request_id, "error": {"code": exc.code, "message": str(exc)}})
