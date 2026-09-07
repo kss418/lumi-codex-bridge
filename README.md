@@ -137,14 +137,13 @@ Java 입력은 전용 스레드에서 읽고, Codex 요청은 단일 처리 루�
 - 모델별 지원 추론 강도만 표시합니다. 모델을 바꾸면 추론 강도는 기본값으로 돌아갑니다.
 - **Codex 기본값 사용**을 선택하면 빈 문자열로 저장합니다.
 - 저장은 `PluginContext.prefs()`의 `model`, `effort` 키를 사용합니다. 본체 공용 설정이나 Codex 전역 설정은 수정하지 않습니다.
-- 현재 목록은 Codex `model/list`에서 조회해 `models.json`으로 JAR에 포함한 스냅샷입니다. 설정창을 열 때 자동 갱신하지 않습니다.
+- 설정창을 열 때 Python 브릿지의 `model/list`로 현재 모델 목록을 조회합니다. **목록 새로고침**으로 다시 조회할 수 있습니다. 조회 실패 시 기존 저장값을 유지하고 재시도할 수 있습니다.
 - 목록에 없는 저장 모델은 다른 모델을 선택하기 전까지 저장 버튼을 비활성화합니다.
 - Python 대화에 저장값을 전달하는 기능과 대화 UI는 아직 없습니다. 로컬 설치는 아래 설치 스크립트를 사용합니다.
 
-모델 목록 갱신 및 빌드:
+플러그인 및 Python 브릿지 빌드:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/refresh-models.ps1
 powershell -ExecutionPolicy Bypass -File scripts/build-plugin.ps1
 ```
 
@@ -153,10 +152,10 @@ powershell -ExecutionPolicy Bypass -File scripts/build-plugin.ps1
 - `CodexPlugin.java`: 메뉴 등록과 창 수명 관리
 - `SettingsWindow.java`: 선택창과 모드 전용 설정 저장
 - `plugin.json`: 플러그인 등록 정보
-- `models.json`: 모델과 지원 추론 강도 목록
+- `ModelCatalog.java`: Python을 실행해 모델 목록을 비동기로 조회
 - 빌드 결과: `dist/lumi-codex/plugins/lumi-codex.jar`
 
-설정창 자체는 모델을 호출하지 않으며, 현재 메타데이터의 `network`는 false입니다.
+설정창은 모델 답변을 생성하지 않습니다. 모델 목록 조회를 위해 Codex App Server에 연결하므로 `network`는 true입니다.
 
 ## 로컬 꼬미에 설치
 
@@ -180,3 +179,10 @@ powershell -ExecutionPolicy Bypass -File scripts/install-plugin.ps1 -WhatIf
 
 설치 후 꼬미를 다시 실행하고 설정 → 모드에서 **Lumi Codex**를 켜세요. 스크립트는 꼬미를 강제 종료하거나 자동 실행하지 않으며, 기존 모드의 활성화 상태와 사용자 설정을 변경하지 않습니다. 실행 중인 꼬미 프로세스를 찾거나 JAR이 잠겨 있으면 설치를 중단합니다. 설치 폴더 쓰기 권한이 없으면 관리자 권한 터미널에서 실행하세요.
 
+
+
+### 동적 모델 목록 실행 환경
+
+빌드 및 설치 스크립트는 JAR 외에 `tools/main.py`, `codex_client.py`, `stdio_bridge.py`, `runtime.json`도 복사합니다. `runtime.json`은 모델 목록이 아니라 로컬 개발용 Python 실행 경로만 담습니다. 배포할 때는 이 머신 전용 파일을 제외할 수 있습니다.
+
+Python은 `LUMI_CODEX_PYTHON` 환경변수 → 유효한 `tools/runtime.json` 경로 → PATH의 `python` 순으로 선택합니다. 기존 Codex 로그인이 필요합니다. 조회용 Python은 목록 반환 후 종료하며, 창을 닫거나 조회 제한 시간(30초)을 넘으면 해당 조회 프로세스를 정리합니다. 네트워크 조회는 Swing 백그라운드 작업으로 실행합니다.

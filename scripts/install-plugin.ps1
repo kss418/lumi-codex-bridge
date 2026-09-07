@@ -16,7 +16,7 @@ if (-not $destination.StartsWith($lumiRoot.TrimEnd('\') + '\', [StringComparison
     throw 'Destination is outside the Little LUMI installation.'
 }
 # Refuse redirected mod paths so an existing junction cannot change the target.
-foreach ($relative in @('mods', 'mods\lumi-codex', 'mods\lumi-codex\plugins', 'mods\lumi-codex\plugins\lumi-codex.jar')) {
+foreach ($relative in @('mods', 'mods\lumi-codex', 'mods\lumi-codex\plugins', 'mods\lumi-codex\plugins\lumi-codex.jar', 'mods\lumi-codex\tools')) {
     $path = Join-Path $lumiRoot $relative
     if ((Test-Path -LiteralPath $path) -and ((Get-Item -LiteralPath $path).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
         throw "Redirected install path is not supported: $path"
@@ -48,6 +48,13 @@ if ($Build) {
 if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
     throw 'Build output not found. Run this script with -Build first.'
 }
+$toolNames = @('main.py', 'codex_client.py', 'stdio_bridge.py', 'runtime.json')
+$sourceTools = Join-Path $projectRoot 'dist\lumi-codex\tools'
+foreach ($name in $toolNames) {
+    if (-not (Test-Path -LiteralPath (Join-Path $sourceTools $name) -PathType Leaf)) {
+        throw 'Python bridge build output missing. Run with -Build.'
+    }
+}
 Assert-LumiStopped
 $directory = Split-Path $destination -Parent
 New-Item -ItemType Directory -Path $directory -Force | Out-Null
@@ -60,5 +67,18 @@ Copy-Item -LiteralPath $source -Destination $destination -Force
 if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash) {
     throw 'Installed JAR checksum mismatch.'
 }
+$targetTools = Join-Path $lumiRoot 'mods\lumi-codex\tools'
+New-Item -ItemType Directory -Path $targetTools -Force | Out-Null
+foreach ($name in $toolNames) {
+    $targetFile = Join-Path $targetTools $name
+    if ((Test-Path -LiteralPath $targetFile) -and ((Get-Item -LiteralPath $targetFile).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw "Redirected tool file is not supported: $targetFile"
+    }
+    Copy-Item -LiteralPath (Join-Path $sourceTools $name) -Destination $targetFile -Force
+    if ((Get-FileHash -LiteralPath (Join-Path $sourceTools $name)).Hash -ne (Get-FileHash -LiteralPath $targetFile).Hash) {
+        throw "Tool checksum mismatch: $name"
+    }
+}
 Write-Output "Installed: $destination"
 Write-Output 'Restart Little LUMI and enable Lumi Codex in Settings > Mods.'
+

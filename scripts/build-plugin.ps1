@@ -16,3 +16,11 @@ $dist = Join-Path $projectRoot 'dist\lumi-codex\plugins'
 New-Item -ItemType Directory -Path $dist -Force | Out-Null
 & $jar --create --file (Join-Path $dist 'lumi-codex.jar') -C $classes . -C $resources .
 if ($LASTEXITCODE -ne 0) { throw 'JAR packaging failed.' }
+
+$toolsDirectory = Join-Path $projectRoot 'dist\lumi-codex\tools'
+New-Item -ItemType Directory -Path $toolsDirectory -Force | Out-Null
+foreach ($name in @('main.py', 'codex_client.py', 'stdio_bridge.py')) {
+    Copy-Item -LiteralPath (Join-Path $projectRoot "bridge\$name") -Destination (Join-Path $toolsDirectory $name) -Force
+}
+$runtime = @{ python = (Join-Path $projectRoot '.venv\bin\python.exe') } | ConvertTo-Json
+[IO.File]::WriteAllText((Join-Path $toolsDirectory 'runtime.json'), $runtime, [Text.UTF8Encoding]::new($false))

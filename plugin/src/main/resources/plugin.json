@@ -7,5 +7,5 @@
   "api_version": 1,
   "app_version": "1.2.0",
   "affects_character": false,
-  "network": false
+  "network": true
 }
