@@ -139,7 +139,7 @@ Java 입력은 전용 스레드에서 읽고, Codex 요청은 단일 처리 루�
 - 저장은 `PluginContext.prefs()`의 `model`, `effort` 키를 사용합니다. 본체 공용 설정이나 Codex 전역 설정은 수정하지 않습니다.
 - 현재 목록은 Codex `model/list`에서 조회해 `models.json`으로 JAR에 포함한 스냅샷입니다. 설정창을 열 때 자동 갱신하지 않습니다.
 - 목록에 없는 저장 모델은 다른 모델을 선택하기 전까지 저장 버튼을 비활성화합니다.
-- Python 대화에 저장값을 전달하는 기능, 대화 UI와 자동 모드 설치는 아직 없습니다.
+- Python 대화에 저장값을 전달하는 기능과 대화 UI는 아직 없습니다. 로컬 설치는 아래 설치 스크립트를 사용합니다.
 
 모델 목록 갱신 및 빌드:
 
@@ -157,3 +157,26 @@ powershell -ExecutionPolicy Bypass -File scripts/build-plugin.ps1
 - 빌드 결과: `dist/lumi-codex/plugins/lumi-codex.jar`
 
 설정창 자체는 모델을 호출하지 않으며, 현재 메타데이터의 `network`는 false입니다.
+
+## 로컬 꼬미에 설치
+
+꼬미를 완전히 종료한 뒤 레포 루트에서 실행하세요.
+
+```powershell
+# 빌드하고 설치
+powershell -ExecutionPolicy Bypass -File scripts/install-plugin.ps1 -Build
+
+# 기존 빌드 결과만 설치
+powershell -ExecutionPolicy Bypass -File scripts/install-plugin.ps1
+
+# 다른 Steam 라이브러리에 설치된 경우
+powershell -ExecutionPolicy Bypass -File scripts/install-plugin.ps1 -Build -LumiHome "D:\SteamLibrary\steamapps\common\Little LUMI"
+
+# 파일을 변경하지 않고 설치 대상 확인
+powershell -ExecutionPolicy Bypass -File scripts/install-plugin.ps1 -WhatIf
+```
+
+`dist/lumi-codex/plugins/lumi-codex.jar`를 `<꼬미 설치 폴더>/mods/lumi-codex/plugins/lumi-codex.jar`에 복사합니다. 기존 JAR은 레포의 `build/install-backup/lumi-codex.jar.bak`에 최근 한 개를 보관합니다. 복사 후 SHA-256이 일치하는지 확인합니다.
+
+설치 후 꼬미를 다시 실행하고 설정 → 모드에서 **Lumi Codex**를 켜세요. 스크립트는 꼬미를 강제 종료하거나 자동 실행하지 않으며, 기존 모드의 활성화 상태와 사용자 설정을 변경하지 않습니다. 실행 중인 꼬미 프로세스를 찾거나 JAR이 잠겨 있으면 설치를 중단합니다. 설치 폴더 쓰기 권한이 없으면 관리자 권한 터미널에서 실행하세요.
+
