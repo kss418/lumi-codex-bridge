@@ -11,9 +11,11 @@ public final class HistoryPanel extends JPanel {
         ConversationStore store=new ConversationStore(context);
         var characters=new LinkedHashSet<>(context.installedImageSets());characters.addAll(context.activeImageSets());if(characters.isEmpty())characters.add("Lumi");
         JComboBox<String> choice=new JComboBox<>(characters.toArray(String[]::new));
+        choice.setPreferredSize(new Dimension(200,choice.getPreferredSize().height));
+        JPanel characterRow=new JPanel(new FlowLayout(FlowLayout.LEFT,0,0));characterRow.add(choice);
         JTextArea text=new JTextArea(18,40);text.setEditable(false);text.setLineWrap(true);text.setWrapStyleWord(true);
         JLabel status=new JLabel("참고는 새 대화 연결 시 최대 40,000자 · 화면 이미지 제외");
-        JPanel top=new JPanel(new BorderLayout(6,6));top.add(choice,BorderLayout.NORTH);top.add(status,BorderLayout.SOUTH);add(top,BorderLayout.NORTH);
+        JPanel top=new JPanel(new BorderLayout(6,6));top.add(characterRow,BorderLayout.NORTH);top.add(status,BorderLayout.SOUTH);add(top,BorderLayout.NORTH);
         HistorySettings limits=HistorySettings.load(context.prefs());
         JSpinner stored=new JSpinner(new SpinnerNumberModel(limits.stored(),1,50,1));
         JSpinner referenced=new JSpinner(new SpinnerNumberModel(limits.referenced(),1,limits.stored(),1));

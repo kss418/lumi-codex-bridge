@@ -9,6 +9,7 @@ import java.util.*;
 public final class SettingsWindow extends JFrame {
     private final ModelSettingsPanel model;
     private final TtsSettingsPanel tts;
+    private final UpdatePanel updates;
     public SettingsWindow(PluginContext context,LocalTtsService voice) {
         super("Lumi Codex 설정");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
@@ -26,6 +27,11 @@ public final class SettingsWindow extends JFrame {
         tabs.addTab("페르소나 설정",personas(context));
         tabs.addTab("TTS 설정",scroll(tts));
         tabs.addTab("대화 기록",new HistoryPanel(context,voice));
+        updates=new UpdatePanel(context.descriptor().version);
+        JPanel updatePage=new JPanel(new BorderLayout());
+        updatePage.setBorder(BorderFactory.createEmptyBorder(16,16,16,16));
+        updatePage.add(updates,BorderLayout.NORTH);
+        tabs.addTab("업데이트",scroll(updatePage));
         root.add(tabs,BorderLayout.CENTER);
         JButton close=new JButton("닫기");close.addActionListener(event->dispose());
         JPanel footer=new JPanel(new FlowLayout(FlowLayout.RIGHT));footer.add(close);root.add(footer,BorderLayout.SOUTH);
@@ -55,6 +61,6 @@ public final class SettingsWindow extends JFrame {
         panel.add(cards,BorderLayout.CENTER);return panel;
     }
     @Override public void dispose(){
-        if(model!=null)model.close();if(tts!=null)tts.close();super.dispose();
+        if(model!=null)model.close();if(tts!=null)tts.close();if(updates!=null)updates.close();super.dispose();
     }
 }

@@ -14,7 +14,6 @@ public final class ModelSettingsPanel extends JPanel implements AutoCloseable {
     private final JLabel status = new JLabel(" ");
     private final JButton save = new JButton("저장");
     private final JButton refresh = new JButton("목록 새로고침");
-    private UpdatePanel updates;
     private boolean updating;
     private boolean loaded;
     private ModelCatalog catalog;
@@ -24,16 +23,18 @@ public final class ModelSettingsPanel extends JPanel implements AutoCloseable {
         super(new BorderLayout());
         this.context = context;
 
+        models.setPreferredSize(new Dimension(320,models.getPreferredSize().height));
+        efforts.setPreferredSize(new Dimension(320,efforts.getPreferredSize().height));
         models.addActionListener(event -> { if (!updating) updateEfforts(""); });
         JPanel form = new JPanel(new GridBagLayout());
         form.setBorder(BorderFactory.createEmptyBorder(20, 20, 16, 20));
         GridBagConstraints c = new GridBagConstraints();
         c.insets = new Insets(6, 6, 6, 6); c.anchor = GridBagConstraints.WEST;
         c.gridx = 0; c.gridy = 0; form.add(new JLabel("모델"), c);
-        c.gridx = 1; c.weightx = 1; c.fill = GridBagConstraints.HORIZONTAL; form.add(models, c);
+        c.gridx = 1; c.weightx = 1; c.fill = GridBagConstraints.NONE; form.add(models, c);
         c.gridx = 0; c.gridy = 1; c.weightx = 0; c.fill = GridBagConstraints.NONE; form.add(new JLabel("추론 강도"), c);
-        c.gridx = 1; c.weightx = 1; c.fill = GridBagConstraints.HORIZONTAL; form.add(efforts, c);
-        c.gridx = 0; c.gridy = 2; c.gridwidth = 2;
+        c.gridx = 1; c.weightx = 1; c.fill = GridBagConstraints.NONE; form.add(efforts, c);
+        c.gridx = 0; c.gridy = 2; c.gridwidth = 2; c.fill = GridBagConstraints.HORIZONTAL;
         form.add(new JLabel("저장한 선택은 다음 실행에도 유지됩니다."), c);
         c.gridy = 3; form.add(status, c);
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -72,9 +73,7 @@ public final class ModelSettingsPanel extends JPanel implements AutoCloseable {
         c.gridy=12;form.add(selfStatus,c);
         JButton selfSave=new JButton("혼잣말 설정 저장");
         selfSave.addActionListener(event->{try{selfInterval.commitEdit();new SelfTalkSettings(selfEnabled.isSelected(),((Number)selfInterval.getValue()).intValue()).save(context.prefs());selfStatus.setText("저장했습니다. 설정한 간격 후부터 한가할 때 먼저 말을 겁니다.");}catch(Exception error){selfStatus.setText("간격은 30~3600초 사이의 정수로 입력해 주세요.");}});
-        c.gridy=13;c.anchor=GridBagConstraints.EAST;form.add(selfSave,c);
-        updates=new UpdatePanel(context.descriptor().version);
-        c.gridy=14; c.anchor=GridBagConstraints.WEST; c.fill=GridBagConstraints.HORIZONTAL; form.add(updates,c);
+        c.gridy=13;c.anchor=GridBagConstraints.EAST;c.fill=GridBagConstraints.NONE;form.add(selfSave,c);
         add(form,BorderLayout.NORTH);
         refreshModels();
     }
@@ -149,7 +148,6 @@ public final class ModelSettingsPanel extends JPanel implements AutoCloseable {
         status.setText("모델과 추론 강도를 저장했습니다.");
     }
     @Override public void close() {
-        if(updates!=null)updates.close();
         if (catalog != null) catalog.close();
         if (worker != null) worker.cancel(true);
 
