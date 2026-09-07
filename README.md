@@ -11,7 +11,7 @@ Little LUMI(꼬미)를 Codex와 연결하는 비공식 모드입니다.
 
 ## 설치
 
-Windows 11, Little LUMI, Python 3.12 이상과 로그인된 Codex가 필요합니다.
+Windows 11, Little LUMI와 로그인된 Codex가 필요합니다. Python이 없으면 설치 스크립트가 모드 전용으로 자동 설치합니다.
 꼬미를 종료한 뒤 아래 명령을 실행하세요. **배포 릴리스가 게시된 후 사용할 수 있습니다.**
 
 ```powershell
@@ -20,7 +20,7 @@ powershell -ExecutionPolicy Bypass -File .\install-lumi-codex.ps1
 ```
 
 설치 후 꼬미를 다시 실행하고 **설정 → 모드 → Lumi Codex**를 켜세요. 같은 명령으로 업데이트할 수 있습니다.
-설치 경로를 찾지 못하면 `-LumiHome "꼬미 설치 경로"`, Python을 찾지 못하면 `-PythonPath "python.exe 경로"`를 추가하세요.
+설치 경로를 찾지 못하면 `-LumiHome "꼬미 설치 경로"`, 특정 Python을 사용하려면 `-PythonPath "python.exe 경로"`를 추가하세요. 시스템 PATH는 변경하지 않습니다.
 
 ## 사용
 

@@ -4,7 +4,9 @@ param(
     [string]$PythonPath,
     [string]$Version = 'latest',
     [string]$ArchivePath,
-    [string]$ChecksumPath
+    [string]$ChecksumPath,
+    [switch]$UsePrivatePython,
+    [switch]$NoPythonInstall
 )
 $ErrorActionPreference='Stop'
 $repository='kss418/lumi-codex-bridge'
@@ -31,13 +33,39 @@ function Find-Lumi {
     }
     throw '꼬미 설치 경로를 찾지 못했습니다. -LumiHome "설치 경로"를 지정하세요.'
 }
+function Install-PrivatePython {
+    $privateRoot=Join-Path $env:LOCALAPPDATA 'LumiCodex\python-3.14.7'
+    Assert-NotRedirected $privateRoot
+    $exe=Join-Path $privateRoot 'python.exe'
+    $marker=Join-Path $privateRoot '.installed'
+    if(-not(Test-Path -LiteralPath $marker) -or -not(Test-Path -LiteralPath $exe)){
+        if($NoPythonInstall){throw 'Python이 없습니다. -NoPythonInstall을 빼거나 -PythonPath를 지정하세요.'}
+        Write-Host '모드 전용 Python 3.14.7을 설치합니다. 약 12MB를 다운로드합니다.'
+        $download=Join-Path ([IO.Path]::GetTempPath()) ('lumi-python-'+[guid]::NewGuid().ToString('N')+'.zip')
+        Invoke-WebRequest 'https://www.python.org/ftp/python/3.14.7/python-3.14.7-embed-amd64.zip' -OutFile $download -UseBasicParsing
+        $expected='d297e5ff019966817ad8502465176139f2d3d840fa4ed84b13bed399a6ab1f15'
+        if((Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash -ne $expected){throw 'Python 다운로드 파일 검증에 실패했습니다.'}
+        New-Item -ItemType Directory -Path $privateRoot -Force | Out-Null
+        Expand-Archive -LiteralPath $download -DestinationPath $privateRoot -Force
+    }
+    $pathFile=Join-Path $privateRoot 'python314._pth'
+    Assert-NotRedirected $pathFile
+    # Embedded Python is isolated; explicitly allow this mod's sibling modules.
+    $modulePath=Join-Path $destination 'tools'
+    [IO.File]::WriteAllText($pathFile,"python314.zip`n.`n$modulePath`n",[Text.UTF8Encoding]::new($false))
+    & $exe -c 'import sys, json, subprocess, ssl; assert sys.version_info >= (3,12)'
+    if($LASTEXITCODE -ne 0){throw '모드 전용 Python 실행 확인에 실패했습니다.'}
+    [IO.File]::WriteAllText($marker,'3.14.7',[Text.UTF8Encoding]::new($false))
+    return $exe
+}
 function Find-Python {
+    if($UsePrivatePython){return Install-PrivatePython}
     $candidates=@()
     if($PythonPath){$candidates+=@{path=$PythonPath;args=@()}}
     else {
         foreach($name in @('py.exe','python.exe','python3.exe')){
             $command=Get-Command $name -ErrorAction SilentlyContinue
-            if($command){$candidates+=@{path=$command.Source;args=$(if($name -eq 'py.exe'){@('-3')}else{@()})}}
+            if($command -and $command.Source -notlike '*Microsoft\WindowsApps\*'){$candidates+=@{path=$command.Source;args=$(if($name -eq 'py.exe'){@('-3')}else{@()})}}
         }
     }
     foreach($candidate in $candidates){
@@ -48,7 +76,8 @@ function Find-Python {
             if($LASTEXITCODE -eq 0 -and $output.Count -gt 0 -and (Test-Path -LiteralPath $output[-1] -PathType Leaf)){return $output[-1]}
         } catch { }
     }
-    throw 'Python 3.12 이상이 필요합니다. 설치 후 다시 실행하거나 -PythonPath "python.exe 경로"를 지정하세요.'
+    if($PythonPath){throw '지정한 Python을 실행할 수 없거나 버전이 3.12 미만입니다.'}
+    return Install-PrivatePython
 }
 function Assert-NotRedirected([string]$path){
     $current=$path
@@ -63,7 +92,6 @@ if(-not(Test-Path -LiteralPath (Join-Path $lumiRoot 'app\Shimeji-ee.jar'))){thro
 $destination=Join-Path $lumiRoot 'mods\lumi-codex'
 Assert-NotRedirected $destination
 if(-not $PSCmdlet.ShouldProcess($destination,'GitHub 배포본 다운로드 및 설치')){return}
-$python=Find-Python
 foreach($process in Get-Process){
     $exe=$null;try{$exe=$process.Path}catch{}
     if($exe -and $exe.StartsWith($lumiRoot.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw '꼬미를 완전히 종료한 뒤 설치하세요.'}
@@ -107,6 +135,7 @@ try {
         [IO.Compression.ZipFileExtensions]::ExtractToFile($entries[0],$target,$false)
     }
 } finally {$zip.Dispose()}
+$python=Find-Python
 $runtime=@{python=$python}|ConvertTo-Json
 [IO.File]::WriteAllText((Join-Path $work 'tools/runtime.json'),$runtime,[Text.UTF8Encoding]::new($false))
 $files+='tools/runtime.json'
