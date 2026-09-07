@@ -36,9 +36,22 @@ public final class UpdateInstaller {
             Files.copy(input,folder.resolve("update-helper.ps1"));
         }
         Files.writeString(folder.resolve("request.json"),Json.write(Map.of("parentPid",ProcessHandle.current().pid(),"lumiHome",lumi.toString())),StandardCharsets.UTF_8);
-        Files.writeString(folder.resolve("launch.ps1"),"$ErrorActionPreference='Stop'\r\n$helper=Join-Path $PSScriptRoot 'update-helper.ps1'\r\nStart-Process -FilePath (Join-Path $PSHOME 'powershell.exe') -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('\"'+$helper+'\"'))\r\n",StandardCharsets.UTF_8);
+        Files.writeString(folder.resolve("launch.ps1"),launcherScript(),StandardCharsets.UTF_8);
         return folder;
     }
+    public static String launcherScript() {
+        // WMI creates the helper outside the game's child-process job.
+        return """
+                $ErrorActionPreference='Stop'
+                $helper=Join-Path $PSScriptRoot 'update-helper.ps1'
+                $shell=Join-Path $PSHOME 'powershell.exe'
+                $command='"'+$shell+'" -NoProfile -ExecutionPolicy Bypass -File "'+$helper+'"'
+                $startup=New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ShowWindow=[uint16]0}
+                $result=Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine=$command;ProcessStartupInformation=$startup}
+                if($result.ReturnValue -ne 0){throw ('Detached updater failed: '+$result.ReturnValue)}
+                """;
+    }
+
     private static byte[] download(HttpClient client,URI uri,int limit)throws Exception {
         var response=client.send(HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(90)).header("User-Agent","Lumi-Codex").GET().build(),HttpResponse.BodyHandlers.ofByteArray());
         if(response.statusCode()!=200)throw new IllegalStateException("다운로드 실패: HTTP "+response.statusCode());
