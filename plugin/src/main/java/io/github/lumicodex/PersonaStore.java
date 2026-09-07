@@ -26,7 +26,16 @@ public final class PersonaStore {
             return result;
         } catch(RuntimeException error) { throw new IOException("페르소나 파일을 읽지 못했습니다. 원본을 확인해 주세요.",error); }
     }
-    public String defaultPersona(String character) { return Objects.toString(context.persona(character),""); }
+    public String defaultPersona(String character) {
+        String persona = Objects.toString(context.persona(character), "");
+        if (!persona.isBlank()) return persona;
+        persona = Objects.toString(context.persona("Lumi"), "");
+        if (!persona.isBlank()) return persona;
+        try (var stream = PersonaStore.class.getResourceAsStream("/default_persona.txt")) {
+            if (stream != null) return new String(stream.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).strip();
+        } catch (IOException error) { context.log().warning(error.toString()); }
+        return "너는 다정한 데스크톱 AI 루미다. 자신을 루미라고 부르며 밝고 따뜻한 존댓말로 짧게 대화한다.";
+    }
     public String effective(String character) throws IOException {
         Map<String,String> data=read();
         return data.containsKey(character)?data.get(character):defaultPersona(character);
@@ -41,3 +50,4 @@ public final class PersonaStore {
         context.writeAtomic(file(),Json.write(Map.of("version",1,"characters",data)),true);
     }
 }
+

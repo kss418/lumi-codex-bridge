@@ -20,10 +20,10 @@ public final class CodexPlugin implements LumiPlugin {
     public void start(PluginContext context) {
         this.context = context;
         trayItem = context.addTrayItem("Codex 모델 설정", this::openSettings);
+        personaItem = context.addTrayItem("페르소나 설정", this::choosePersona);
         settingsButton = context.addSettingsButton("Codex 모델 설정", this::openSettings);
         chatItem = context.addCharacterMenuItem("대화하기", context::isCharacter,
                 this::openChat);
-        personaItem = context.addCharacterMenuItem("페르소나 설정", context::isCharacter, (imageSet, mascotId) -> openPersona(imageSet));
         context.log().info("Lumi Codex settings plugin started.");
     }
 
@@ -38,6 +38,26 @@ public final class CodexPlugin implements LumiPlugin {
                 chats.put(mascotId, chat);
             }
             chat.showNearMascot();
+        });
+    }
+
+    private void choosePersona() {
+        PluginContext active = context;
+        if (active == null) return;
+        active.onEdt(() -> {
+            if (context != active) return;
+            java.util.List<String> characters = new java.util.ArrayList<>(active.activeImageSets());
+            if (characters.isEmpty()) characters.add("Lumi");
+            String selected = characters.getFirst();
+            if (characters.size() > 1) {
+                Object choice = JOptionPane.showInputDialog(null,
+                        "페르소나를 설정할 캐릭터를 선택해 주세요.",
+                        "페르소나 설정", JOptionPane.PLAIN_MESSAGE,
+                        null, characters.toArray(), selected);
+                if (choice == null) return;
+                selected = choice.toString();
+            }
+            openPersona(selected);
         });
     }
 
