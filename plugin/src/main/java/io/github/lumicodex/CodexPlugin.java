@@ -19,7 +19,7 @@ public final class CodexPlugin implements LumiPlugin {
         this.context = context;
         trayItem = context.addTrayItem("Codex 모델 설정", this::openSettings);
         settingsButton = context.addSettingsButton("Codex 모델 설정", this::openSettings);
-        chatItem = context.addCharacterMenuItem("꼬미와 대화", context::isCharacter,
+        chatItem = context.addCharacterMenuItem("대화하기", context::isCharacter,
                 this::openChat);
         context.log().info("Lumi Codex settings plugin started.");
     }
@@ -31,11 +31,10 @@ public final class CodexPlugin implements LumiPlugin {
             if (context != active) return;
             ChatWindow chat = chats.get(mascotId);
             if (chat == null || !chat.isDisplayable()) {
-                chat = new ChatWindow(active, imageSet, mascotId);
+                chat = new ChatWindow(active, imageSet, mascotId, this::openSettings);
                 chats.put(mascotId, chat);
             }
-            chat.setVisible(true);
-            chat.toFront();
+            chat.showNearMascot();
         });
     }
 
@@ -67,4 +66,8 @@ public final class CodexPlugin implements LumiPlugin {
         active.log().info("Lumi Codex settings plugin stopped.");
     }
 }
+
+
+
+
 
