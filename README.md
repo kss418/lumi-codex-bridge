@@ -30,17 +30,3 @@ powershell -ExecutionPolicy Bypass -File .\install-lumi-codex.ps1
 
 대화에는 계정의 Codex 사용량이 적용됩니다. 화면 같이 보기는 캡처한 화면을 OpenAI 서버로 전송합니다.
 현재 대화 내용은 앱 재시작 후 복원되지 않습니다.
-
-## 직접 빌드·배포
-
-개발용 JDK 25(`.tools/jdk-25`)와 Python 가상환경(`.venv/bin/python.exe`)을 준비한 뒤 실행합니다.
-
-```powershell
-# 내 PC의 꼬미에 빌드·설치
-powershell -ExecutionPolicy Bypass -File scripts/install-plugin.ps1 -Build
-
-# GitHub Release에 올릴 배포 파일 생성
-powershell -ExecutionPolicy Bypass -File scripts/package-release.ps1
-```
-
-`dist/releases/<버전>`에 생성된 ZIP, 설치 스크립트, SHA256SUMS.txt를 같은 GitHub Release에 올리세요. 스크립트는 자동 게시하지 않습니다.
