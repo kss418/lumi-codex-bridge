@@ -2,10 +2,10 @@
   "id": "lumi.codex",
   "name": "Lumi Codex",
   "version": "0.1.0",
-  "description": "Codex 모델과 추론 강도를 선택하고 플러그인 전용 설정에 저장합니다.",
+  "description": "Codex 모델 설정과 꼬미 우클릭 대화, 말풍선 응답을 제공합니다.",
   "dependencies": [],
   "api_version": 1,
   "app_version": "1.2.0",
-  "affects_character": false,
+  "affects_character": true,
   "network": true
 }

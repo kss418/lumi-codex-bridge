@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import re
 import shutil
 import subprocess
 import sys
@@ -23,17 +24,33 @@ def find_codex() -> str:
         if not Path(override).is_file():
             raise CodexError("CODEX_EXECUTABLE does not point to a file")
         return override
+    candidates = []
     native = shutil.which("codex.exe" if os.name == "nt" else "codex")
     if native:
-        return native
-    # npm on Windows exposes a .cmd wrapper; start the native binary directly
-    # so closing this client also closes the server it owns.
+        candidates.append(Path(native))
     if os.name == "nt":
-        root = Path(os.environ.get("APPDATA", "")) / "npm/node_modules/@openai/codex"
-        candidates = sorted(root.glob("**/codex.exe"))
-        if candidates:
-            return str(candidates[0])
+        # Steam may inherit an older PATH than the Codex desktop app.
+        local = Path(os.environ.get("LOCALAPPDATA", "")) / "OpenAI/Codex/bin"
+        candidates.extend(local.glob("*/codex.exe"))
+        npm = Path(os.environ.get("APPDATA", "")) / "npm/node_modules/@openai/codex"
+        candidates.extend(npm.glob("**/codex.exe"))
+    versions = []
+    for candidate in dict.fromkeys(candidates):
+        try:
+            result = subprocess.run(
+                [str(candidate), "--version"], capture_output=True, text=True,
+                encoding="utf-8", timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+            match = re.search(r"codex-cli (\d+)\.(\d+)\.(\d+)", result.stdout)
+            if result.returncode == 0 and match:
+                versions.append((tuple(map(int, match.groups())), str(candidate)))
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+    if versions:
+        return max(versions, key=lambda item: item[0])[1]
     raise CodexError("Codex executable not found. Set CODEX_EXECUTABLE to codex.exe.")
+
 
 
 class CodexClient:
