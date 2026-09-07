@@ -31,7 +31,6 @@ public final class LocalTtsService implements AutoCloseable {
     private volatile boolean previewRunning;
     private volatile boolean previewLease;
     private volatile String previewDevice;
-    private volatile int previewVolume;
     private final java.util.concurrent.atomic.AtomicReference<Consumer<String>> previewFinished=new java.util.concurrent.atomic.AtomicReference<>();
     public static final String PREVIEW_TEXT="안녕하세요, 루미와 함께 즐거운 하루 보내요!";
     public LocalTtsService(PluginContext context) { this(context,null,null); }
@@ -52,10 +51,10 @@ public final class LocalTtsService implements AutoCloseable {
         catch(Exception error){return false;}
     }
     public boolean enabled(){return context.prefs().getBoolean("tts.enabled",false);}
-    public void settings(boolean enabled,String device,int volume) {
+    public void settings(boolean enabled,String device) {
         if(enabled && !installed()) throw new IllegalStateException("로컬 TTS를 먼저 설치해 주세요.");
         if(!List.of("auto","cpu","cuda").contains(device)) throw new IllegalArgumentException("지원하지 않는 실행 장치입니다.");
-        context.prefs().set("tts.enabled",enabled);context.prefs().set("tts.device",device);context.prefs().set("tts.volume",Math.max(0,Math.min(volume,100)));context.prefs().save();
+        context.prefs().set("tts.enabled",enabled);context.prefs().set("tts.device",device);context.prefs().save();
         if(!enabled || !Objects.equals(loadedDevice,device)) stop();
     }
     public void install(Consumer<String> progress) throws Exception {
@@ -132,12 +131,11 @@ public final class LocalTtsService implements AutoCloseable {
                 && (previewRunning || synthesizing || speaking || (done!=null && !done.isDone()));
     }
     public boolean previewing(){return previewRunning;}
-    public void preview(String device,int volume,Consumer<String> finished) {
+    public void preview(String device,Consumer<String> finished) {
         if(closed)throw new IllegalStateException("음성 서비스가 종료됐습니다.");
         if(!installed())throw new IllegalStateException("로컬 TTS를 먼저 설치해 주세요.");
         if(context.focusActive())throw new IllegalStateException("집중 모드를 끈 뒤 미리듣기를 사용해 주세요.");
         if(!List.of("auto","cpu","cuda").contains(device))throw new IllegalArgumentException("지원하지 않는 실행 장치입니다.");
-        if(volume<0 || volume>100)throw new IllegalArgumentException("음량은 0~100이어야 합니다.");
         // Cancel the previous utterance, but preserve a ready model on the same device.
         previewLease=true;
         stoppedGeneration=generation.incrementAndGet();
@@ -145,7 +143,7 @@ public final class LocalTtsService implements AutoCloseable {
         finishPreview("이전 미리듣기를 중지했습니다.");
         if(synthesizing || !Objects.equals(loadedDevice,device)) stopProcess();
         lastUsed=System.nanoTime();
-        previewDevice=device;previewVolume=volume;previewFinished.set(finished);previewRunning=true;
+        previewDevice=device;previewFinished.set(finished);previewRunning=true;
         long ticket=generation.incrementAndGet();
         sentences.submit(List.of(PREVIEW_TEXT),() -> !closed && previewRunning && ticket==generation.get() && !context.focusActive());
     }
@@ -160,15 +158,21 @@ public final class LocalTtsService implements AutoCloseable {
         if(!enabled() && !previewLease)stopProcess();
     }
 
+    private int voicePackVolume() {
+        // Match the built-in voice pack default and range; read again for each sentence.
+        try {return Math.max(0,Math.min(100,Integer.parseInt(context.setting("lumi.voice.volume","100").trim())));}
+        catch(NumberFormatException error){return 100;}
+    }
+
     private CompletableFuture<Void> playPart(PcmAudio audio,String text,BooleanSupplier valid) {
         CompletableFuture<Void> done=new CompletableFuture<>();
         // Resolve target only while this utterance is still current.
         String imageSet=speechImageSet;int mascotId=speechMascotId;String fullText=speechText;
-        boolean preview=previewRunning;int volume=preview?previewVolume:context.prefs().getInt("tts.volume",80);
+        boolean preview=previewRunning;
         context.onEdt(() -> {
             if(!valid.getAsBoolean() || (!preview && context.mascotById(mascotId)==null)){done.complete(null);return;}
             playingDone=done;
-            context.setSpeechVolume(volume);
+            context.setSpeechVolume(voicePackVolume());
             speaking=true;
             try {
                 context.speak(audio,() -> context.onEdt(() -> {
@@ -176,7 +180,7 @@ public final class LocalTtsService implements AutoCloseable {
                     // Keep the complete reply visible; only the audio is split into sentences.
                     if(!preview) {
                         context.sayTo(mascotId,imageSet,fullText,audio.millis()+1500);
-                        context.mouthFlapFor(imageSet,audio.millis());
+                        // Like voiced self-talk, skip MouthFlap: its Talk animation plays chat_blip.wav.
                     }
                 }),() -> {
                     if(playingDone==done){speaking=false;lastUsed=System.nanoTime();if(preview)finishPreview("미리듣기를 마쳤습니다.");}

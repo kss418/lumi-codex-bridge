@@ -10,7 +10,6 @@ public final class TtsSettingsWindow extends JFrame {
         super("루미 로컬 TTS 설정");setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         JCheckBox enabled=new JCheckBox("TTS 켜기",voice.enabled());
         JComboBox<String> device=new JComboBox<>(new String[]{"auto","cpu","cuda"});device.setSelectedItem(context.prefs().get("tts.device","auto"));
-        JSlider volume=new JSlider(0,100,context.prefs().getInt("tts.volume",80));
         JLabel status=new JLabel(voice.installed()?"설치됨 — 켜면 다음 답변부터 읽습니다.":"미설치 — 설치 버튼을 눌렀을 때만 다운로드합니다.");
         JProgressBar progress=new JProgressBar(0,100);progress.setStringPainted(true);progress.setString("대기 중");
         JTextArea log=new JTextArea(8,48);log.setEditable(false);log.setLineWrap(true);
@@ -22,18 +21,19 @@ public final class TtsSettingsWindow extends JFrame {
         playbackState.start();
         JPanel panel=new JPanel(new BorderLayout(8,8));panel.setBorder(BorderFactory.createEmptyBorder(12,12,12,12));
         JPanel fields=new JPanel(new GridLayout(0,1,4,4));fields.add(enabled);
-        JPanel row=new JPanel(new FlowLayout(FlowLayout.LEFT));row.add(new JLabel("실행 장치"));row.add(device);row.add(new JLabel("음량"));row.add(volume);fields.add(row);
+        JPanel row=new JPanel(new FlowLayout(FlowLayout.LEFT));row.add(new JLabel("실행 장치"));row.add(device);fields.add(row);
+        fields.add(new JLabel("음량은 꼬미 설정의 보이스팩 음량을 따릅니다."));
         fields.add(new JLabel("설치 시 약 6~9GB 다운로드 · 여유 공간 30GB 필요"));
         fields.add(new JLabel("한국어 루미 보이스팩 필요 · 모델은 로컬에만 설치됩니다."));fields.add(status);fields.add(progress);
         panel.add(fields,BorderLayout.NORTH);panel.add(new JScrollPane(log),BorderLayout.CENTER);
         JPanel buttons=new JPanel(new FlowLayout(FlowLayout.RIGHT));buttons.add(install);buttons.add(preview);buttons.add(stop);buttons.add(save);panel.add(buttons,BorderLayout.SOUTH);
-        save.addActionListener(event -> {try{voice.settings(enabled.isSelected(),(String)device.getSelectedItem(),volume.getValue());status.setText("저장했습니다. 끄면 재생과 모델을 정리합니다.");}catch(Exception error){status.setText(error.getMessage());}});
+        save.addActionListener(event -> {try{voice.settings(enabled.isSelected(),(String)device.getSelectedItem());status.setText("저장했습니다. 끄면 재생과 모델을 정리합니다.");}catch(Exception error){status.setText(error.getMessage());}});
         stop.addActionListener(event -> {voice.stop();stop.setEnabled(false);});
         preview.addActionListener(event -> {
             try {
                 preview.setEnabled(false);
                 status.setText("미리듣기 준비 중입니다. 첫 실행은 시간이 걸릴 수 있습니다.");
-                voice.preview((String)device.getSelectedItem(),volume.getValue(),message -> {
+                voice.preview((String)device.getSelectedItem(),message -> {
                     status.setText(message);preview.setEnabled(voice.installed());stop.setEnabled(voice.canStop());
                 });
                 stop.setEnabled(voice.canStop());

@@ -22,7 +22,7 @@ public class TtsPreviewReuseTest {
  static void set(LocalTtsService voice,String name,Object value)throws Exception {var f=LocalTtsService.class.getDeclaredField(name);f.setAccessible(true);f.set(voice,value);}
  static void check(boolean ok,String label){if(!ok)throw new AssertionError(label);}
  static void preview(LocalTtsService voice,String device)throws Exception {
-  CountDownLatch done=new CountDownLatch(1);voice.preview(device,71,message->done.countDown());
+  CountDownLatch done=new CountDownLatch(1);voice.preview(device,message->done.countDown());
   check(done.await(3,TimeUnit.SECONDS),"preview finished");
  }
  public static void main(String[] args)throws Exception {
@@ -39,7 +39,7 @@ public class TtsPreviewReuseTest {
     FakeProcess second=new FakeProcess();set(voice,"process",second);set(voice,"loadedDevice","cpu");
     preview(voice,"cuda");check(!second.alive,"device switch unloads previous model");
     FakeProcess third=new FakeProcess();set(voice,"process",third);set(voice,"loadedDevice","cpu");
-    preview(voice,"cpu");voice.settings(false,"cpu",45);check(!third.alive,"explicit off unloads model");
+    preview(voice,"cpu");voice.settings(false,"cpu");check(!third.alive,"explicit off unloads model");
    }
   }
   System.out.println("PASS: same-device reuse, off-state preservation, device switch and explicit shutdown (no GPU/audio)");
