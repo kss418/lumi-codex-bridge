@@ -18,6 +18,7 @@ class StdioSession:
         self.model = model
         self.effort = effort
         self.thread_id = None
+        self.persona = ""
         self.stop = False
 
     def dispatch(self, method, params):
@@ -35,6 +36,9 @@ class StdioSession:
         text = params.get("text")
         if not isinstance(text, str) or not text.strip():
             raise ProtocolError(-32602, "params.text must be a non-empty string")
+        persona = params.get("persona", self.persona)
+        if not isinstance(persona, str) or len(persona) > 20000:
+            raise ProtocolError(-32602, "params.persona must be a string of at most 20000 characters")
         model = params.get("model", self.model)
         effort = params.get("effort", self.effort)
         for key, value in (("model", model), ("effort", effort)):
@@ -42,9 +46,13 @@ class StdioSession:
                 raise ProtocolError(-32602, f"params.{key} must be a non-empty string or null")
         if self.thread_id is not None and model != self.model:
             raise ProtocolError(-32602, "Model is fixed for this conversation. Restart the bridge to change it.")
-        if self.thread_id is None:
-            self.thread_id = self.client.start_thread(model=model)
+        if self.thread_id is None or persona != self.persona:
+            options = {"model": model}
+            if persona:
+                options["persona"] = persona
+            self.thread_id = self.client.start_thread(**options)
             self.model = model
+            self.persona = persona
         answer = self.client.send_message(self.thread_id, text, effort=effort)
         self.effort = effort
         return {"text": answer, "thread_id": self.thread_id}

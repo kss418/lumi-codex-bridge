@@ -168,10 +168,17 @@ class CodexClient:
                 return model
         raise ValueError(f"Unknown model: {name}. Use --list-models to see available models.")
 
-    def start_thread(self, *, model=None):
+    def start_thread(self, *, model=None, persona=None):
+        if persona is not None and (not isinstance(persona, str) or len(persona) > 20000):
+            raise ValueError("persona must be a string of at most 20000 characters")
+        instructions = "Reply briefly in Korean for a desktop character speech bubble. Do not use tools or read files."
+        if persona and persona.strip():
+            instructions += " Follow the character's personality and speaking style below.\n\nCharacter persona:\n" + persona
+        else:
+            instructions += " Use polite language."
         params = {
             "sandbox": "read-only", "approvalPolicy": "never", "ephemeral": True,
-            "developerInstructions": "Respond conversationally in Korean using polite language. Do not use tools or read files. Keep replies brief.",
+            "developerInstructions": instructions,
         }
         if model is not None:
             params["model"] = self._model_info(model)["model"]

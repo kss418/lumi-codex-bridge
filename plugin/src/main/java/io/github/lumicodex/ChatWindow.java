@@ -94,6 +94,12 @@ public final class ChatWindow extends JDialog {
     private void submit() {
         String text=input.getText().strip();
         if(text.isEmpty() || (worker!=null && !worker.isDone())) return;
+        final String persona;
+        try { persona = new PersonaStore(context).effective(imageSet); }
+        catch (Exception error) {
+            status.setText("페르소나를 읽지 못했습니다."); status.setToolTipText(error.getMessage());
+            context.log().warning(error.toString()); return;
+        }
         String model=context.prefs().get("model",""); String effort=context.prefs().get("effort","");
         if(bridge==null || !model.equals(selectedModel) || !effort.equals(selectedEffort)) {
             if(bridge!=null) bridge.close();
@@ -104,7 +110,7 @@ public final class ChatWindow extends JDialog {
         status.setText("답변을 준비하고 있습니다…");
         context.showBusyFor(mascotId,"생각 중…");
         worker=new SwingWorker<>() {
-            protected String doInBackground() throws Exception { return current.chat(text,model,effort); }
+            protected String doInBackground() throws Exception { return current.chat(text,model,effort,persona); }
             protected void done() {
                 if(disposed || isCancelled()) return;
                 try {

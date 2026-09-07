@@ -13,6 +13,8 @@ public final class CodexPlugin implements LumiPlugin {
     private PluginUi.MenuHandle trayItem;
     private PluginUi.MenuHandle settingsButton;
     private PluginUi.MenuHandle chatItem;
+    private PluginUi.MenuHandle personaItem;
+    private final java.util.Map<String, PersonaWindow> personas = new java.util.HashMap<>();
 
     @Override
     public void start(PluginContext context) {
@@ -21,6 +23,7 @@ public final class CodexPlugin implements LumiPlugin {
         settingsButton = context.addSettingsButton("Codex 모델 설정", this::openSettings);
         chatItem = context.addCharacterMenuItem("대화하기", context::isCharacter,
                 this::openChat);
+        personaItem = context.addCharacterMenuItem("페르소나 설정", context::isCharacter, (imageSet, mascotId) -> openPersona(imageSet));
         context.log().info("Lumi Codex settings plugin started.");
     }
 
@@ -35,6 +38,24 @@ public final class CodexPlugin implements LumiPlugin {
                 chats.put(mascotId, chat);
             }
             chat.showNearMascot();
+        });
+    }
+
+    private void openPersona(String imageSet) {
+        PluginContext active = context;
+        if (active == null) return;
+        active.onEdt(() -> {
+            if (context != active) return;
+            try {
+                PersonaWindow editor = personas.get(imageSet);
+                if (editor == null || !editor.isDisplayable()) {
+                    editor = new PersonaWindow(active, imageSet);
+                    personas.put(imageSet, editor);
+                }
+                editor.setVisible(true); editor.toFront();
+            } catch (Exception error) {
+                JOptionPane.showMessageDialog(null, error.getMessage(), "페르소나 설정 오류", JOptionPane.ERROR_MESSAGE);
+            }
         });
     }
 
@@ -62,10 +83,12 @@ public final class CodexPlugin implements LumiPlugin {
         if (trayItem != null) trayItem.remove();
         if (settingsButton != null) settingsButton.remove();
         if (chatItem != null) chatItem.remove();
-        active.onEdt(() -> { chats.values().forEach(ChatWindow::dispose); chats.clear(); if (window != null) { window.dispose(); window = null; } });
+        if (personaItem != null) personaItem.remove();
+        active.onEdt(() -> { personas.values().forEach(PersonaWindow::dispose); personas.clear(); chats.values().forEach(ChatWindow::dispose); chats.clear(); if (window != null) { window.dispose(); window = null; } });
         active.log().info("Lumi Codex settings plugin stopped.");
     }
 }
+
 
 
 
