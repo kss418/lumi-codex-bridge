@@ -40,6 +40,7 @@ public final class HistoryPanel extends JPanel {
             if(JOptionPane.showConfirmDialog(this,"이 캐릭터의 저장된 대화 기록을 모두 삭제할까요?","기록 삭제",JOptionPane.OK_CANCEL_OPTION)!=JOptionPane.OK_OPTION)return;
             try{store.reset((String)choice.getSelectedItem(),true);voice.stop();refresh.run();status.setText("기록을 삭제하고 새 대화를 시작합니다.");}catch(Exception error){status.setText(error.getMessage());}
         });
+        putClientProperty("actionAnchor",delete);
         JPanel buttons=new JPanel(new FlowLayout(FlowLayout.RIGHT));buttons.add(reload);buttons.add(start);buttons.add(delete);add(buttons,BorderLayout.SOUTH);refresh.run();
     }
 }

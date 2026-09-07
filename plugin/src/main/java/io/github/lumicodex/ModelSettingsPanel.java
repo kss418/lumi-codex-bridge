@@ -37,10 +37,11 @@ public final class ModelSettingsPanel extends JPanel implements AutoCloseable {
         c.gridx = 0; c.gridy = 2; c.gridwidth = 2; c.fill = GridBagConstraints.HORIZONTAL;
         form.add(new JLabel("저장한 선택은 다음 실행에도 유지됩니다."), c);
         c.gridy = 3; form.add(status, c);
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel buttons = new JPanel();
+        buttons.setLayout(new BoxLayout(buttons,BoxLayout.X_AXIS));
         save.addActionListener(event -> saveSelection());
         refresh.addActionListener(event -> refreshModels());
-        buttons.add(refresh); buttons.add(save);
+        buttons.add(Box.createHorizontalGlue());buttons.add(refresh);buttons.add(Box.createHorizontalStrut(8));buttons.add(save);
         c.gridy = 4; form.add(buttons, c);
         ScreenWatchSettings screenSettings=ScreenWatchSettings.load(context.prefs());
         JCheckBox automatic=new JCheckBox("자동 화면 같이 보기",screenSettings.enabled());
@@ -73,6 +74,7 @@ public final class ModelSettingsPanel extends JPanel implements AutoCloseable {
         c.gridy=12;form.add(selfStatus,c);
         JButton selfSave=new JButton("혼잣말 설정 저장");
         selfSave.addActionListener(event->{try{selfInterval.commitEdit();new SelfTalkSettings(selfEnabled.isSelected(),((Number)selfInterval.getValue()).intValue()).save(context.prefs());selfStatus.setText("저장했습니다. 설정한 간격 후부터 한가할 때 먼저 말을 겁니다.");}catch(Exception error){selfStatus.setText("간격은 30~3600초 사이의 정수로 입력해 주세요.");}});
+        putClientProperty("actionAnchor",selfSave);
         c.gridy=13;c.anchor=GridBagConstraints.EAST;c.fill=GridBagConstraints.NONE;form.add(selfSave,c);
         add(form,BorderLayout.NORTH);
         refreshModels();

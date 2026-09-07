@@ -24,6 +24,7 @@ public final class PersonaPanel extends JPanel {
             try { store.reset(character); text.setText(store.defaultPersona(character)); status.setText("캐릭터 기본 페르소나를 사용합니다."); }
             catch(IOException error) { JOptionPane.showMessageDialog(this,error.getMessage(),"설정 오류",JOptionPane.ERROR_MESSAGE); }
         });
+        putClientProperty("actionAnchor",save);
         buttons.add(reset); buttons.add(save); panel.add(buttons,BorderLayout.SOUTH);
         add(panel,BorderLayout.CENTER);
     }

@@ -18,6 +18,7 @@ public final class TtsSettingsPanel extends JPanel implements AutoCloseable {
         JButton install=new JButton("로컬 TTS 설치");install.setEnabled(!voice.installed());
         JButton preview=new JButton("미리듣기");preview.setEnabled(voice.installed());
         JButton save=new JButton("설정 저장");JButton stop=new JButton("재생 중지");
+        putClientProperty("actionAnchor",save);
         stop.setEnabled(voice.canStop());
         playbackState=new Timer(200,event -> stop.setEnabled(voice.canStop()));
         playbackState.start();

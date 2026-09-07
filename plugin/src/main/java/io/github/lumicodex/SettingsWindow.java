@@ -34,8 +34,36 @@ public final class SettingsWindow extends JFrame {
         tabs.addTab("업데이트",scroll(updatePage));
         root.add(tabs,BorderLayout.CENTER);
         JButton close=new JButton("닫기");close.addActionListener(event->dispose());
-        JPanel footer=new JPanel(new FlowLayout(FlowLayout.RIGHT));footer.add(close);root.add(footer,BorderLayout.SOUTH);
+        JPanel footer=new JPanel(new FlowLayout(FlowLayout.RIGHT)) {
+            @Override public void doLayout() {
+                super.doLayout();
+                Component anchor=actionAnchor(tabs.getSelectedComponent());
+                if(anchor!=null && anchor.getWidth()>0) {
+                    Point edge=SwingUtilities.convertPoint(anchor,anchor.getWidth(),0,this);
+                    close.setLocation(Math.max(0,Math.min(getWidth()-close.getWidth(),edge.x-close.getWidth())),close.getY());
+                }
+            }
+        };
+        tabs.addChangeListener(event->SwingUtilities.invokeLater(()->{footer.revalidate();footer.repaint();}));
+        java.awt.event.ComponentAdapter align=new java.awt.event.ComponentAdapter(){
+            @Override public void componentResized(java.awt.event.ComponentEvent event){footer.revalidate();}
+            @Override public void componentMoved(java.awt.event.ComponentEvent event){footer.revalidate();}
+        };
+        for(Component page:tabs.getComponents())watchAnchors(page,align);
+        footer.add(close);root.add(footer,BorderLayout.SOUTH);
         setContentPane(root);setMinimumSize(new Dimension(680,580));setSize(760,720);setLocationRelativeTo(null);
+    }
+    private static Component actionAnchor(Component component) {
+        if(component instanceof JComponent view && view.getClientProperty("actionAnchor") instanceof Component anchor)return anchor;
+        if(component instanceof Container container)for(Component child:container.getComponents()) {
+            if(!child.isVisible())continue;
+            Component anchor=actionAnchor(child);if(anchor!=null)return anchor;
+        }
+        return null;
+    }
+    private static void watchAnchors(Component component,java.awt.event.ComponentListener listener) {
+        if(component instanceof JComponent view && view.getClientProperty("actionAnchor") instanceof Component anchor)anchor.addComponentListener(listener);
+        if(component instanceof Container container)for(Component child:container.getComponents())watchAnchors(child,listener);
     }
     private static JScrollPane scroll(JComponent panel) {
         JScrollPane scroll=new JScrollPane(panel);scroll.setBorder(BorderFactory.createEmptyBorder());
