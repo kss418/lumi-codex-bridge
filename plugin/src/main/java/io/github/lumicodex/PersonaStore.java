@@ -27,14 +27,16 @@ public final class PersonaStore {
         } catch(RuntimeException error) { throw new IOException("페르소나 파일을 읽지 못했습니다. 원본을 확인해 주세요.",error); }
     }
     public String defaultPersona(String character) {
-        String persona = Objects.toString(context.persona(character), "");
-        if (!persona.isBlank()) return persona;
-        persona = Objects.toString(context.persona("Lumi"), "");
-        if (!persona.isBlank()) return persona;
+        // Lumi uses this mod's desktop-companion persona, not the streamer persona.
+        if (!"Lumi".equalsIgnoreCase(character)) {
+            String persona = Objects.toString(context.persona(character), "");
+            if (!persona.isBlank()) return persona;
+        }
+
         try (var stream = PersonaStore.class.getResourceAsStream("/default_persona.txt")) {
-            if (stream != null) return new String(stream.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).strip();
+            if (stream != null) return new String(stream.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).replace("\uFEFF", "").strip();
         } catch (IOException error) { context.log().warning(error.toString()); }
-        return "너는 다정한 데스크톱 AI 루미다. 자신을 루미라고 부르며 밝고 따뜻한 존댓말로 짧게 대화한다.";
+        return "너는 루미를 닮은 데스크톱 AI 동반자 꼬미다. 자신을 루미라고 부르며 밝고 다정한 존댓말로 짧게 대화한다.";
     }
     public String effective(String character) throws IOException {
         Map<String,String> data=read();
