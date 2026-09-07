@@ -9,6 +9,12 @@ public final class CodexPlugin implements LumiPlugin {
     public static final String ID = "lumi.codex";
     private PluginContext context;
     private SettingsWindow window;
+    private LocalTtsService voice;
+    private ExternalSpeech externalSpeech;
+    private TtsSettingsWindow ttsWindow;
+    private PluginUi.MenuHandle ttsItem;
+    private javax.swing.Timer screenWatchTimer;
+    private AutoScreenWatch screenWatch;
     private final java.util.Map<Integer, ChatWindow> chats = new java.util.HashMap<>();
     private PluginUi.MenuHandle trayItem;
     private PluginUi.MenuHandle settingsButton;
@@ -21,8 +27,11 @@ public final class CodexPlugin implements LumiPlugin {
     @Override
     public void start(PluginContext context) {
         this.context = context;
+        voice = new LocalTtsService(context);
+        externalSpeech = new ExternalSpeech(context,voice::speak);
         trayItem = context.addTrayItem("Codex 모델 설정", this::openSettings);
         personaItem = context.addTrayItem("페르소나 설정", this::choosePersona);
+        ttsItem = context.addTrayItem("TTS 설정", this::openTtsSettings);
         settingsButton = context.addSettingsButton("Codex 모델 설정", this::openSettings);
         chatItem = context.addCharacterMenuItem("대화하기", context::isCharacter,
                 this::openChat);
@@ -34,7 +43,26 @@ public final class CodexPlugin implements LumiPlugin {
             });
         });
         cancelItem.setEnabled(false);
-        desktopItem = context.addCharacterMenuItem("바탕화면 보기", context::isCharacter, this::inspectDesktop);
+        desktopItem = context.addCharacterMenuItem("화면 같이 보기", context::isCharacter, this::inspectDesktop);
+        context.onEdt(() -> {
+            if(this.context!=context) return;
+            screenWatch=new AutoScreenWatch(() -> ScreenWatchSettings.load(context.prefs()),
+                    () -> !context.focusActive() && !context.charactersHidden() && !context.bubbleVisible()
+                            && !context.mascots().isEmpty()
+                            && chats.values().stream().noneMatch(chat -> chat.isBusy() || chat.isVisible()),
+                    () -> {
+                        // One character/monitor per interval, preferring Lumi.
+                        var candidates=context.mascots().stream().filter(m -> context.isCharacter(m.imageSet())).toList();
+                        if(candidates.isEmpty()) return;
+                        var target=candidates.stream().filter(m -> "Lumi".equalsIgnoreCase(m.imageSet())).findFirst().orElse(candidates.getFirst());
+                        inspectDesktop(target.imageSet(),target.id());
+                    });
+            screenWatchTimer=new javax.swing.Timer(1000,event -> {
+                if(this.context!=context) return;
+                try { screenWatch.tick(); } catch(Exception error) { context.log().warning(error.toString()); }
+            });
+            screenWatchTimer.start();
+        });
         context.log().info("Lumi Codex settings plugin started.");
     }
 
@@ -50,7 +78,7 @@ public final class CodexPlugin implements LumiPlugin {
             if (context != active) return;
             ChatWindow chat = chats.get(mascotId);
             if (chat == null || !chat.isDisplayable()) {
-                chat = new ChatWindow(active, imageSet, mascotId, this::openSettings, this::refreshCancelMenu);
+                chat = new ChatWindow(active, imageSet, mascotId, this::openSettings, this::refreshCancelMenu, voice);
                 chats.put(mascotId, chat);
             }
             chat.inspectDesktop();
@@ -64,7 +92,7 @@ public final class CodexPlugin implements LumiPlugin {
             if (context != active) return;
             ChatWindow chat = chats.get(mascotId);
             if (chat == null || !chat.isDisplayable()) {
-                chat = new ChatWindow(active, imageSet, mascotId, this::openSettings, this::refreshCancelMenu);
+                chat = new ChatWindow(active, imageSet, mascotId, this::openSettings, this::refreshCancelMenu, voice);
                 chats.put(mascotId, chat);
             }
             chat.showNearMascot();
@@ -109,6 +137,16 @@ public final class CodexPlugin implements LumiPlugin {
         });
     }
 
+    private void openTtsSettings() {
+        PluginContext active=context;
+        if(active==null)return;
+        active.onEdt(() -> {
+            if(context!=active)return;
+            if(ttsWindow==null || !ttsWindow.isDisplayable())ttsWindow=new TtsSettingsWindow(active,voice);
+            ttsWindow.setVisible(true);ttsWindow.toFront();
+        });
+    }
+
     private void openSettings() {
         PluginContext active = context;
         if (active == null) return;
@@ -136,7 +174,10 @@ public final class CodexPlugin implements LumiPlugin {
         if (cancelItem != null) cancelItem.remove();
         if (desktopItem != null) desktopItem.remove();
         if (personaItem != null) personaItem.remove();
-        active.onEdt(() -> { personas.values().forEach(PersonaWindow::dispose); personas.clear(); chats.values().forEach(ChatWindow::dispose); chats.clear(); if (window != null) { window.dispose(); window = null; } });
+        if (ttsItem != null) ttsItem.remove();
+        if (externalSpeech != null) externalSpeech.close();
+        if (voice != null) voice.close();
+        active.onEdt(() -> { if(ttsWindow!=null) ttsWindow.dispose(); if(screenWatchTimer!=null) screenWatchTimer.stop(); if(screenWatch!=null) screenWatch.stop(); personas.values().forEach(PersonaWindow::dispose); personas.clear(); chats.values().forEach(ChatWindow::dispose); chats.clear(); if (window != null) { window.dispose(); window = null; } });
         active.log().info("Lumi Codex settings plugin stopped.");
     }
 }

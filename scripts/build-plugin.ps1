@@ -19,7 +19,7 @@ if ($LASTEXITCODE -ne 0) { throw 'JAR packaging failed.' }
 
 $toolsDirectory = Join-Path $projectRoot 'dist\lumi-codex\tools'
 New-Item -ItemType Directory -Path $toolsDirectory -Force | Out-Null
-foreach ($name in @('main.py', 'codex_client.py', 'stdio_bridge.py')) {
+foreach ($name in @('main.py', 'codex_client.py', 'stdio_bridge.py', 'local_tts.py')) {
     Copy-Item -LiteralPath (Join-Path $projectRoot "bridge\$name") -Destination (Join-Path $toolsDirectory $name) -Force
 }
 $runtime = @{ python = (Join-Path $projectRoot '.venv\bin\python.exe') } | ConvertTo-Json

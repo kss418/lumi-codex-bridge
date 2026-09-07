@@ -48,7 +48,7 @@ if ($Build) {
 if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
     throw 'Build output not found. Run this script with -Build first.'
 }
-$toolNames = @('main.py', 'codex_client.py', 'stdio_bridge.py', 'runtime.json')
+$toolNames = @('main.py', 'codex_client.py', 'stdio_bridge.py', 'local_tts.py', 'runtime.json')
 $sourceTools = Join-Path $projectRoot 'dist\lumi-codex\tools'
 foreach ($name in $toolNames) {
     if (-not (Test-Path -LiteralPath (Join-Path $sourceTools $name) -PathType Leaf)) {
