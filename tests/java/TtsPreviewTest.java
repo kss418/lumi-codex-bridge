@@ -23,6 +23,7 @@ public class TtsPreviewTest {
     check(LocalTtsService.PREVIEW_TEXT.equals(produced.get()),"sample text");
     check(!voice.enabled() && kit.context().prefs().getInt("tts.volume",0)==45 && kit.context().prefs().get("tts.device","").equals("auto"),"settings unchanged");
     check(!voice.previewing(),"preview completes");
+    check(!voice.canStop(),"stop disabled after completion");
     check(kit.calls("speak").size()==1,"plays without a mascot");
    }
    AtomicInteger synthCalls=new AtomicInteger();
@@ -33,7 +34,8 @@ public class TtsPreviewTest {
    CountDownLatch started=new CountDownLatch(1),release=new CountDownLatch(1),stopped=new CountDownLatch(1);kit.clearCalls();
    try(var voice=create(kit.context(),true,text->{started.countDown();release.await();return new PcmAudio(format,new byte[320],10);})) {
     voice.preview("cpu",71,message->stopped.countDown());check(started.await(2,TimeUnit.SECONDS),"start");
-    voice.stop();release.countDown();check(stopped.await(2,TimeUnit.SECONDS),"stop callback");
+    check(voice.canStop(),"stop enabled during synthesis");
+    voice.stop();check(!voice.canStop(),"stop disabled immediately");release.countDown();check(stopped.await(2,TimeUnit.SECONDS),"stop callback");
     SwingUtilities.invokeAndWait(()->{});check(!voice.previewing(),"stopped state");check(kit.calls("speak").isEmpty(),"no late playback");
    }
   }

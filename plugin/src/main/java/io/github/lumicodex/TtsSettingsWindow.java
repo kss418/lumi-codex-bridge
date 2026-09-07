@@ -17,6 +17,9 @@ public final class TtsSettingsWindow extends JFrame {
         JButton install=new JButton("로컬 TTS 설치");install.setEnabled(!voice.installed());
         JButton preview=new JButton("미리듣기");preview.setEnabled(voice.installed());
         JButton save=new JButton("설정 저장");JButton stop=new JButton("재생 중지");
+        stop.setEnabled(voice.canStop());
+        Timer playbackState=new Timer(200,event -> stop.setEnabled(voice.canStop()));
+        playbackState.start();
         JPanel panel=new JPanel(new BorderLayout(8,8));panel.setBorder(BorderFactory.createEmptyBorder(12,12,12,12));
         JPanel fields=new JPanel(new GridLayout(0,1,4,4));fields.add(enabled);
         JPanel row=new JPanel(new FlowLayout(FlowLayout.LEFT));row.add(new JLabel("실행 장치"));row.add(device);row.add(new JLabel("음량"));row.add(volume);fields.add(row);
@@ -25,18 +28,19 @@ public final class TtsSettingsWindow extends JFrame {
         panel.add(fields,BorderLayout.NORTH);panel.add(new JScrollPane(log),BorderLayout.CENTER);
         JPanel buttons=new JPanel(new FlowLayout(FlowLayout.RIGHT));buttons.add(install);buttons.add(preview);buttons.add(stop);buttons.add(save);panel.add(buttons,BorderLayout.SOUTH);
         save.addActionListener(event -> {try{voice.settings(enabled.isSelected(),(String)device.getSelectedItem(),volume.getValue());status.setText("저장했습니다. 끄면 재생과 모델을 정리합니다.");}catch(Exception error){status.setText(error.getMessage());}});
-        stop.addActionListener(event -> voice.stop());
+        stop.addActionListener(event -> {voice.stop();stop.setEnabled(false);});
         preview.addActionListener(event -> {
             try {
                 preview.setEnabled(false);
                 status.setText("미리듣기 준비 중입니다. 첫 실행은 시간이 걸릴 수 있습니다.");
                 voice.preview((String)device.getSelectedItem(),volume.getValue(),message -> {
-                    status.setText(message);preview.setEnabled(voice.installed());
+                    status.setText(message);preview.setEnabled(voice.installed());stop.setEnabled(voice.canStop());
                 });
-            } catch(Exception error) {status.setText(error.getMessage());preview.setEnabled(voice.installed());}
+                stop.setEnabled(voice.canStop());
+            } catch(Exception error) {status.setText(error.getMessage());preview.setEnabled(voice.installed());stop.setEnabled(voice.canStop());}
         });
         addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override public void windowClosed(java.awt.event.WindowEvent event) {if(voice.previewing())voice.stop();}
+            @Override public void windowClosed(java.awt.event.WindowEvent event) {playbackState.stop();voice.endPreviewSession();}
         });
         install.addActionListener(event -> {
             progress.setIndeterminate(true);progress.setString("설치 준비 중");
