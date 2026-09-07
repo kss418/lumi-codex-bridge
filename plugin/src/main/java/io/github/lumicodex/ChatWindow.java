@@ -160,10 +160,9 @@ public final class ChatWindow extends JDialog {
                 if(disposed || isCancelled()) return;
                 try {
                     String reply=ScreenReaction.visibleReply(get(),automatic);
-                    // Same non-TTS reply path as LUMI Chat: let the core size and time the bubble.
+                    // Show voiced replies when playback starts; text-only replies remain immediate.
                     if(!reply.isBlank()) {
-                        if(context.mascotById(mascotId)!=null) context.sayTo(mascotId,imageSet,reply,0L);
-                        voice.speak(reply,imageSet,mascotId);
+                        voice.reply(reply,imageSet,mascotId);
                     }
                     status.setText("Enter로 전송 · Esc로 닫기");
                 } catch(CancellationException ignored) {

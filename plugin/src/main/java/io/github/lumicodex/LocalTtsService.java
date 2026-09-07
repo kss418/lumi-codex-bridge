@@ -38,7 +38,9 @@ public final class LocalTtsService implements AutoCloseable {
         this.context=context;
         this.installationCheck=installationCheck;
         sentences=new SentenceAudioQueue<>(synthesizer==null?this::synthesize:synthesizer,this::playPart,error -> {
-            context.log().warning("[tts] "+error);finishPreview("미리듣기 실패: "+error.getMessage());stop();
+            context.log().warning("[tts] "+error);Runnable fallback=pendingReply;finishPreview("미리듣기 실패: "+error.getMessage());stop();
+            long stopped=generation.get();
+            if(fallback!=null)context.onEdt(() -> {if(!closed && stopped==generation.get() && !context.focusActive())fallback.run();});
         });
         idle.scheduleAtFixedRate(() -> {if((!enabled() && !previewRunning && !previewLease) || context.focusActive()) stop(); if(!synthesizing && !speaking && System.nanoTime()-lastUsed>TimeUnit.MINUTES.toNanos(10)) stopProcess();},1,1,TimeUnit.SECONDS);
     }
@@ -117,12 +119,24 @@ public final class LocalTtsService implements AutoCloseable {
     private volatile int speechMascotId;
     private volatile CompletableFuture<Void> playingDone;
 
+    private volatile Runnable pendingReply;
+
+    public void reply(String text,String imageSet,int mascotId) {
+        Runnable show=() -> {if(context.mascotById(mascotId)!=null)context.sayTo(mascotId,imageSet,text,0L);};
+        if(!startSpeech(text,imageSet,mascotId,show))context.onEdt(show);
+    }
+
     public void speak(String text,String imageSet,int mascotId) {
-        if(closed || previewRunning || !enabled() || context.focusActive() || text.isBlank())return;
+        startSpeech(text,imageSet,mascotId,null);
+    }
+
+    private boolean startSpeech(String text,String imageSet,int mascotId,Runnable fallback) {
+        if(closed || previewRunning || !enabled() || context.focusActive() || text.isBlank())return false;
         long ticket=generation.incrementAndGet();
         stopAudio();
-        speechImageSet=imageSet;speechMascotId=mascotId;speechText=text;
+        speechImageSet=imageSet;speechMascotId=mascotId;speechText=text;pendingReply=fallback;
         sentences.submit(SpeechSentences.split(text),() -> !closed && ticket==generation.get() && enabled() && !context.focusActive());
+        return true;
     }
 
     public boolean canStop() {
@@ -137,6 +151,7 @@ public final class LocalTtsService implements AutoCloseable {
         if(context.focusActive())throw new IllegalStateException("집중 모드를 끈 뒤 미리듣기를 사용해 주세요.");
         if(!List.of("auto","cpu","cuda").contains(device))throw new IllegalArgumentException("지원하지 않는 실행 장치입니다.");
         // Cancel the previous utterance, but preserve a ready model on the same device.
+        pendingReply=null;
         previewLease=true;
         stoppedGeneration=generation.incrementAndGet();
         stopAudio();
@@ -179,6 +194,7 @@ public final class LocalTtsService implements AutoCloseable {
                     if(!valid.getAsBoolean()){context.stopSpeaking();done.complete(null);return;}
                     // Keep the complete reply visible; only the audio is split into sentences.
                     if(!preview) {
+                        pendingReply=null;
                         context.sayTo(mascotId,imageSet,fullText,audio.millis()+1500);
                         // Like voiced self-talk, skip MouthFlap: its Talk animation plays chat_blip.wav.
                     }
@@ -201,6 +217,7 @@ public final class LocalTtsService implements AutoCloseable {
     }
 
     public void stop() {
+        pendingReply=null;
         previewLease=false;
         stoppedGeneration=generation.incrementAndGet();stopProcess();
         stopAudio();

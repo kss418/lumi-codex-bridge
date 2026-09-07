@@ -14,6 +14,7 @@ public final class SettingsWindow extends JFrame {
     private final JLabel status = new JLabel(" ");
     private final JButton save = new JButton("저장");
     private final JButton refresh = new JButton("목록 새로고침");
+    private UpdatePanel updates;
     private boolean updating;
     private boolean loaded;
     private ModelCatalog catalog;
@@ -62,6 +63,8 @@ public final class SettingsWindow extends JFrame {
             } catch(Exception error) { autoStatus.setText("간격은 10~3600초 사이의 정수로 입력해 주세요."); }
         });
         c.gridy=9; c.anchor=GridBagConstraints.EAST; c.fill=GridBagConstraints.NONE; form.add(saveAuto,c);
+        updates=new UpdatePanel(context.descriptor().version);
+        c.gridy=10; c.anchor=GridBagConstraints.WEST; c.fill=GridBagConstraints.HORIZONTAL; form.add(updates,c);
         setContentPane(form); setMinimumSize(new Dimension(610, 430)); pack(); setLocationRelativeTo(null);
         refreshModels();
     }
@@ -136,6 +139,7 @@ public final class SettingsWindow extends JFrame {
         status.setText("모델과 추론 강도를 저장했습니다.");
     }
     @Override public void dispose() {
+        if(updates!=null)updates.close();
         if (catalog != null) catalog.close();
         if (worker != null) worker.cancel(true);
         super.dispose();
