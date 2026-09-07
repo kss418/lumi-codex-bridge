@@ -68,11 +68,27 @@ class LocalTtsTests(unittest.TestCase):
   def preprocess(text,lang,split,version='v1'):return [{'norm_text':' '}]
   frontend=SimpleNamespace(preprocess=preprocess)
   local_tts.configure_frontend(SimpleNamespace(text_preprocessor=frontend,configs=SimpleNamespace(version='v2')))
-  with self.assertRaisesRegex(RuntimeError,'한국어 전처리'):frontend.preprocess('안녕하세요','ko','cut5')
+  with self.assertRaisesRegex(RuntimeError,'한국어 참조/목표 대사 전처리'):frontend.preprocess('안녕하세요','ko','cut5')
  def test_new_frontend_without_version_is_unchanged(self):
   from types import SimpleNamespace
   def preprocess(text,lang,split):return [{'norm_text':text}]
   frontend=SimpleNamespace(preprocess=preprocess)
   local_tts.configure_frontend(SimpleNamespace(text_preprocessor=frontend,configs=SimpleNamespace(version='v2')))
   self.assertIs(frontend.preprocess,preprocess)
+ def test_reference_text_also_uses_v2(self):
+  from types import SimpleNamespace
+  seen=[]
+  def segment(text,language,version='v1'):
+   seen.append(version);return [1],None,text if version=='v2' else ' '
+  frontend=SimpleNamespace(segment_and_extract_feature_for_text=segment)
+  local_tts.configure_frontend(SimpleNamespace(text_preprocessor=frontend,configs=SimpleNamespace(version='v2')))
+  self.assertEqual(frontend.segment_and_extract_feature_for_text('루미예요','ko')[2],'루미예요')
+  frontend.segment_and_extract_feature_for_text('hello','en','v1')
+  self.assertEqual(seen,['v2','v1'])
+ def test_broken_reference_is_rejected(self):
+  from types import SimpleNamespace
+  def segment(text,language,version='v1'):return [1],None,' '
+  frontend=SimpleNamespace(segment_and_extract_feature_for_text=segment)
+  local_tts.configure_frontend(SimpleNamespace(text_preprocessor=frontend,configs=SimpleNamespace(version='v2')))
+  with self.assertRaisesRegex(RuntimeError,'참조/목표'):frontend.segment_and_extract_feature_for_text('루미예요','ko')
 if __name__=='__main__':unittest.main()

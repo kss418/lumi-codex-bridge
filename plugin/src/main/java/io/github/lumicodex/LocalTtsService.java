@@ -9,11 +9,12 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.BooleanSupplier;
 
 /** Optional voice service: neither construction nor status checking installs anything. */
 public final class LocalTtsService implements AutoCloseable {
     private final PluginContext context;
-    private final ExecutorService jobs=Executors.newSingleThreadExecutor(r -> {Thread t=new Thread(r,"lumi-tts");t.setDaemon(true);return t;});
+    private final SentenceAudioQueue<PcmAudio> sentences;
     private final ScheduledExecutorService idle=Executors.newSingleThreadScheduledExecutor(r -> {Thread t=new Thread(r,"lumi-tts-idle");t.setDaemon(true);return t;});
     private final AtomicLong generation=new AtomicLong();
     private volatile Process process;
@@ -27,7 +28,10 @@ public final class LocalTtsService implements AutoCloseable {
     private long requestId;
     public LocalTtsService(PluginContext context) {
         this.context=context;
-        idle.scheduleAtFixedRate(() -> {if(!enabled() || context.focusActive()) stop(); if(!synthesizing && !speaking && System.nanoTime()-lastUsed>TimeUnit.SECONDS.toNanos(120)) stopProcess();},1,1,TimeUnit.SECONDS);
+        sentences=new SentenceAudioQueue<>(this::synthesize,this::playPart,error -> {
+            context.log().warning("[tts] "+error);stop();
+        });
+        idle.scheduleAtFixedRate(() -> {if(!enabled() || context.focusActive()) stop(); if(!synthesizing && !speaking && System.nanoTime()-lastUsed>TimeUnit.MINUTES.toNanos(10)) stopProcess();},1,1,TimeUnit.SECONDS);
     }
     public Path root() {return Path.of(System.getenv("LOCALAPPDATA"),"LumiCodex","tts");}
     private Path tools() throws Exception {return Path.of(getClass().getProtectionDomain().getCodeSource().getLocation().toURI()).getParent().getParent().resolve("tools");}
@@ -98,30 +102,59 @@ public final class LocalTtsService implements AutoCloseable {
             }
         } finally {synthesizing=false;lastUsed=System.nanoTime();}
     }
+    private volatile String speechImageSet;
+    private volatile String speechText;
+    private volatile int speechMascotId;
+    private volatile CompletableFuture<Void> playingDone;
+
     public void speak(String text,String imageSet,int mascotId) {
         if(closed || !enabled() || context.focusActive() || text.isBlank())return;
         long ticket=generation.incrementAndGet();
-        jobs.submit(() -> {
-            if(closed || ticket!=generation.get() || !enabled())return;
-            try {
-                PcmAudio audio=synthesize(text);
-                context.onEdt(() -> {
-                    if(closed || ticket!=generation.get() || !enabled() || context.focusActive() || context.mascotById(mascotId)==null)return;
-                    context.setSpeechVolume(context.prefs().getInt("tts.volume",80));
-                    context.speak(audio,() -> context.onEdt(() -> {
-                        speaking=true;context.sayTo(mascotId,imageSet,text,audio.millis()+1500);context.mouthFlapFor(imageSet,audio.millis());
-                    }),() -> {speaking=false;lastUsed=System.nanoTime();});
-                });
-            } catch(Exception error) {context.log().warning("[tts] "+error);stopProcess();}
-        });
+        stopAudio();
+        speechImageSet=imageSet;speechMascotId=mascotId;speechText=text;
+        sentences.submit(SpeechSentences.split(text),() -> !closed && ticket==generation.get() && enabled() && !context.focusActive());
     }
+
+    private CompletableFuture<Void> playPart(PcmAudio audio,String text,BooleanSupplier valid) {
+        CompletableFuture<Void> done=new CompletableFuture<>();
+        // Resolve target only while this utterance is still current.
+        String imageSet=speechImageSet;int mascotId=speechMascotId;String fullText=speechText;
+        context.onEdt(() -> {
+            if(!valid.getAsBoolean() || context.mascotById(mascotId)==null){done.complete(null);return;}
+            playingDone=done;
+            context.setSpeechVolume(context.prefs().getInt("tts.volume",80));
+            speaking=true;
+            try {
+                context.speak(audio,() -> context.onEdt(() -> {
+                    if(!valid.getAsBoolean()){context.stopSpeaking();done.complete(null);return;}
+                    // Keep the complete reply visible; only the audio is split into sentences.
+                    context.sayTo(mascotId,imageSet,fullText,audio.millis()+1500);
+                    context.mouthFlapFor(imageSet,audio.millis());
+                }),() -> {
+                    if(playingDone==done){speaking=false;lastUsed=System.nanoTime();}
+                    done.complete(null);
+                });
+                // Do not stall the queue indefinitely if an audio backend misses its completion callback.
+                done.orTimeout(audio.millis()+15000,TimeUnit.MILLISECONDS);
+            } catch(Exception error){done.completeExceptionally(error);}
+        });
+        return done;
+    }
+
+    private void stopAudio() {
+        CompletableFuture<Void> done=playingDone;
+        playingDone=null;
+        if(speaking){context.stopSpeaking();context.stopMouthFlap();speaking=false;}
+        if(done!=null)done.complete(null);
+    }
+
     public void stop() {
         generation.incrementAndGet();stopProcess();
-        if(speaking){context.stopSpeaking();context.stopMouthFlap();speaking=false;}
+        stopAudio();
     }
     private synchronized void stopProcess() {
         Process child=process;process=null;
         if(child!=null && child.isAlive()){child.descendants().forEach(p -> p.destroyForcibly());child.destroyForcibly();}
     }
-    @Override public void close(){closed=true;stop();jobs.shutdownNow();idle.shutdownNow();if(installer!=null && installer.isAlive()){installer.descendants().forEach(p -> p.destroyForcibly());installer.destroyForcibly();}}
+    @Override public void close(){closed=true;stop();sentences.close();idle.shutdownNow();if(installer!=null && installer.isAlive()){installer.descendants().forEach(p -> p.destroyForcibly());installer.destroyForcibly();}}
 }

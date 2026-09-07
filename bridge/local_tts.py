@@ -117,20 +117,32 @@ def install(root,lumi_home):
   lock_handle.seek(0);msvcrt.locking(lock_handle.fileno(),msvcrt.LK_UNLCK,1);lock_handle.close()
 
 def configure_frontend(engine):
- """Older v2 runtimes omit version when calling preprocess, defaulting to v1."""
- original = engine.text_preprocessor.preprocess
- if 'version' not in inspect.signature(original).parameters:
-  return
- def preprocess(text, lang, text_split_method, *args, **kwargs):
-  if not args:
-   kwargs.setdefault('version', engine.configs.version)
-  result = original(text, lang, text_split_method, *args, **kwargs)
-  if any('가' <= char <= '힣' for char in text):
-   normalized = ''.join(item.get('norm_text', '') for item in result)
-   if not any('가' <= char <= '힣' for char in normalized):
-    raise RuntimeError('한국어 전처리에 실패했습니다. 잘못된 음성 생성을 중단합니다.')
-  return result
- engine.text_preprocessor.preprocess = preprocess
+ """Legacy v2 omits version in BOTH target preprocessing and reference text."""
+ from functools import wraps
+ frontend = engine.text_preprocessor
+ def uses_korean(text):
+  return any('가' <= char <= '힣' for char in text)
+ def wrap(original, reference):
+  signature = inspect.signature(original)
+  if 'version' not in signature.parameters:
+   return original
+  @wraps(original)
+  def converted(*args, **kwargs):
+   bound = signature.bind_partial(*args, **kwargs)
+   if 'version' not in bound.arguments:
+    kwargs['version'] = engine.configs.version
+   result = original(*args, **kwargs)
+   text = bound.arguments.get('text', '')
+   normalized = result[2] if reference else ''.join(item.get('norm_text', '') for item in result)
+   if uses_korean(text) and not uses_korean(normalized):
+    raise RuntimeError('한국어 참조/목표 대사 전처리에 실패했습니다. 잘못된 음성 생성을 중단합니다.')
+   return result
+  return converted
+ for name, reference in [('preprocess', False), ('segment_and_extract_feature_for_text', True)]:
+  original = getattr(frontend, name, None)
+  if original is not None:
+   setattr(frontend, name, wrap(original, reference))
+
 
 def serve(root,device):
  config=installed(root)

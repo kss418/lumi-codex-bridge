@@ -55,7 +55,7 @@ public final class CodexPlugin implements LumiPlugin {
                         var candidates=context.mascots().stream().filter(m -> context.isCharacter(m.imageSet())).toList();
                         if(candidates.isEmpty()) return;
                         var target=candidates.stream().filter(m -> "Lumi".equalsIgnoreCase(m.imageSet())).findFirst().orElse(candidates.getFirst());
-                        inspectDesktop(target.imageSet(),target.id());
+                        inspectDesktop(target.imageSet(),target.id(),true);
                     });
             screenWatchTimer=new javax.swing.Timer(1000,event -> {
                 if(this.context!=context) return;
@@ -71,7 +71,9 @@ public final class CodexPlugin implements LumiPlugin {
             cancelItem.setEnabled(chats.values().stream().anyMatch(ChatWindow::canCancel));
     }
 
-    private void inspectDesktop(String imageSet, Integer mascotId) {
+    private void inspectDesktop(String imageSet, Integer mascotId) { inspectDesktop(imageSet, mascotId, false); }
+
+    private void inspectDesktop(String imageSet, Integer mascotId, boolean automatic) {
         PluginContext active = context;
         if (active == null) return;
         active.onEdt(() -> {
@@ -81,7 +83,7 @@ public final class CodexPlugin implements LumiPlugin {
                 chat = new ChatWindow(active, imageSet, mascotId, this::openSettings, this::refreshCancelMenu, voice);
                 chats.put(mascotId, chat);
             }
-            chat.inspectDesktop();
+            chat.inspectDesktop(automatic);
         });
     }
 

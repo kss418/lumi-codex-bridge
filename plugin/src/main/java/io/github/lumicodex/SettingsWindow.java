@@ -44,10 +44,10 @@ public final class SettingsWindow extends JFrame {
         c.gridy = 4; form.add(buttons, c);
         ScreenWatchSettings screenSettings=ScreenWatchSettings.load(context.prefs());
         JCheckBox automatic=new JCheckBox("자동 화면 같이 보기",screenSettings.enabled());
-        JSpinner interval=new JSpinner(new SpinnerNumberModel(screenSettings.intervalSeconds(),30,3600,10));
+        JSpinner interval=new JSpinner(new SpinnerNumberModel(screenSettings.intervalSeconds(),ScreenWatchSettings.MIN_SECONDS,ScreenWatchSettings.MAX_SECONDS,1));
         interval.setEditor(new JSpinner.NumberEditor(interval,"0"));
         JPanel autoRow=new JPanel(new FlowLayout(FlowLayout.LEFT,8,0));
-        autoRow.add(automatic); autoRow.add(new JLabel("간격")); autoRow.add(interval); autoRow.add(new JLabel("초 (30~3600)"));
+        autoRow.add(automatic); autoRow.add(new JLabel("간격")); autoRow.add(interval); autoRow.add(new JLabel("초 (5~3600)"));
         c.gridy=5; c.gridwidth=2; c.fill=GridBagConstraints.HORIZONTAL; form.add(new JSeparator(),c);
         c.gridy=6; form.add(autoRow,c);
         c.gridy=7; form.add(new JLabel("켜면 주기적으로 보이는 화면을 Codex로 전송합니다."),c);
@@ -59,7 +59,7 @@ public final class SettingsWindow extends JFrame {
                 interval.commitEdit();
                 new ScreenWatchSettings(automatic.isSelected(),((Number)interval.getValue()).intValue()).save(context.prefs());
                 autoStatus.setText("저장했습니다. 재시작 후에도 유지됩니다.");
-            } catch(Exception error) { autoStatus.setText("간격은 30~3600초 사이의 정수로 입력해 주세요."); }
+            } catch(Exception error) { autoStatus.setText("간격은 5~3600초 사이의 정수로 입력해 주세요."); }
         });
         c.gridy=9; c.anchor=GridBagConstraints.EAST; c.fill=GridBagConstraints.NONE; form.add(saveAuto,c);
         setContentPane(form); setMinimumSize(new Dimension(610, 430)); pack(); setLocationRelativeTo(null);
