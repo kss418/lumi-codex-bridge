@@ -196,6 +196,14 @@ class CodexClient:
             instructions += " Follow the character's personality and speaking style below.\n\nCharacter persona:\n" + persona
         else:
             instructions += " Use polite language."
+        instructions += (
+            "\n\n음성 읽기 규칙: 일상 대화와 화면 반응은 최대한 한글로 답한다. "
+            "영문 용어와 약어는 문맥에 맞는 한국어 표현을 우선하고, 필요한 이름은 통용되는 한글 표기를 쓴다. "
+            "예: GPU는 그래픽 카드, FPS는 초당 프레임 수, HUD는 화면 정보, Codex는 코덱스, TTS는 음성 합성. "
+            "불필요한 영어 원문이나 괄호 속 영문을 덧붙이지 않는다. 의미를 바꾸거나 모르는 이름의 발음을 지어내지 않는다. "
+            "사용자가 영어 원문, 코드, 명령어, 파일 경로, 주소를 요청하는 경우에는 정확성을 위해 원문을 유지한다. "
+            "자동 화면 확인의 침묵 표식 [[LUMI_SILENT]]은 그대로 유지한다."
+        )
         params = {
             "sandbox": "read-only", "approvalPolicy": "never", "ephemeral": True,
             "developerInstructions": instructions,
