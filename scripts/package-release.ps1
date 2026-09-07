@@ -22,8 +22,15 @@ foreach($relative in $files){
 }
 $archive=Join-Path $output 'lumi-codex-windows-x64.zip'
 if(Test-Path -LiteralPath $archive){Remove-Item -LiteralPath $archive}
+Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-[IO.Compression.ZipFile]::CreateFromDirectory($stage,$archive)
+$zip=[IO.Compression.ZipFile]::Open($archive,[IO.Compression.ZipArchiveMode]::Create)
+try {
+    foreach($relative in $files){
+        $source=Join-Path $stage ('lumi-codex/'+$relative)
+        [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$source,('lumi-codex/'+$relative)) | Out-Null
+    }
+} finally {$zip.Dispose()}
 $installer=Join-Path $output 'install-lumi-codex.ps1'
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install-release.ps1') -Destination $installer -Force
 $lines=@($archive,$installer) | ForEach-Object { ((Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant())+'  '+[IO.Path]::GetFileName($_) }

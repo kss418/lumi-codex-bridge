@@ -124,11 +124,12 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip=[IO.Compression.ZipFile]::OpenRead($archive)
 try {
     foreach($entry in $zip.Entries){
-        if($entry.FullName.EndsWith('/')){continue}
-        if($entry.FullName -notin @($files | ForEach-Object {'lumi-codex/'+$_})){throw "예상하지 못한 배포 파일: $($entry.FullName)"}
+        $entryName=$entry.FullName.Replace('\','/')
+        if($entryName.EndsWith('/')){continue}
+        if($entryName -notin @($files | ForEach-Object {'lumi-codex/'+$_})){throw "예상하지 못한 배포 파일: $($entry.FullName)"}
     }
     foreach($relative in $files){
-        $entries=@($zip.Entries | Where-Object FullName -eq ('lumi-codex/'+$relative))
+        $entries=@($zip.Entries | Where-Object { $_.FullName.Replace('\','/') -eq ('lumi-codex/'+$relative) })
         if($entries.Count -ne 1 -or $entries[0].Length -gt 50MB){throw "누락되거나 잘못된 파일: $relative"}
         $target=Join-Path $work $relative
         New-Item -ItemType Directory -Path (Split-Path $target -Parent) -Force | Out-Null
