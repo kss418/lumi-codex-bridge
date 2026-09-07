@@ -15,6 +15,7 @@ public final class TtsSettingsWindow extends JFrame {
         JProgressBar progress=new JProgressBar(0,100);progress.setStringPainted(true);progress.setString("대기 중");
         JTextArea log=new JTextArea(8,48);log.setEditable(false);log.setLineWrap(true);
         JButton install=new JButton("로컬 TTS 설치");install.setEnabled(!voice.installed());
+        JButton preview=new JButton("미리듣기");preview.setEnabled(voice.installed());
         JButton save=new JButton("설정 저장");JButton stop=new JButton("재생 중지");
         JPanel panel=new JPanel(new BorderLayout(8,8));panel.setBorder(BorderFactory.createEmptyBorder(12,12,12,12));
         JPanel fields=new JPanel(new GridLayout(0,1,4,4));fields.add(enabled);
@@ -22,9 +23,21 @@ public final class TtsSettingsWindow extends JFrame {
         fields.add(new JLabel("설치 시 약 6~9GB 다운로드 · 여유 공간 30GB 필요"));
         fields.add(new JLabel("한국어 루미 보이스팩 필요 · 모델은 로컬에만 설치됩니다."));fields.add(status);fields.add(progress);
         panel.add(fields,BorderLayout.NORTH);panel.add(new JScrollPane(log),BorderLayout.CENTER);
-        JPanel buttons=new JPanel(new FlowLayout(FlowLayout.RIGHT));buttons.add(install);buttons.add(stop);buttons.add(save);panel.add(buttons,BorderLayout.SOUTH);
+        JPanel buttons=new JPanel(new FlowLayout(FlowLayout.RIGHT));buttons.add(install);buttons.add(preview);buttons.add(stop);buttons.add(save);panel.add(buttons,BorderLayout.SOUTH);
         save.addActionListener(event -> {try{voice.settings(enabled.isSelected(),(String)device.getSelectedItem(),volume.getValue());status.setText("저장했습니다. 끄면 재생과 모델을 정리합니다.");}catch(Exception error){status.setText(error.getMessage());}});
         stop.addActionListener(event -> voice.stop());
+        preview.addActionListener(event -> {
+            try {
+                preview.setEnabled(false);
+                status.setText("미리듣기 준비 중입니다. 첫 실행은 시간이 걸릴 수 있습니다.");
+                voice.preview((String)device.getSelectedItem(),volume.getValue(),message -> {
+                    status.setText(message);preview.setEnabled(voice.installed());
+                });
+            } catch(Exception error) {status.setText(error.getMessage());preview.setEnabled(voice.installed());}
+        });
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override public void windowClosed(java.awt.event.WindowEvent event) {if(voice.previewing())voice.stop();}
+        });
         install.addActionListener(event -> {
             progress.setIndeterminate(true);progress.setString("설치 준비 중");
             install.setEnabled(false);status.setText("설치 중입니다. 창을 닫아도 앱이 켜져 있으면 계속 설치합니다.");
@@ -81,7 +94,7 @@ public final class TtsSettingsWindow extends JFrame {
                     if(log.getDocument().getLength()>20000)log.setText(log.getText().substring(log.getText().length()-10000));
                     log.setCaretPosition(log.getDocument().getLength());
                 }
-                protected void done(){progress.setIndeterminate(false);try{get();progress.setValue(100);progress.setString("설치 완료");status.setText("설치 완료. TTS 켜기를 선택하고 설정을 저장하세요.");}catch(Exception error){progress.setString("설치 실패");status.setText("설치 실패. 로그를 확인하고 다시 시도하세요.");install.setEnabled(true);log.append("오류: "+(error.getCause()==null?error.getMessage():error.getCause().getMessage())+"\n");}}
+                protected void done(){progress.setIndeterminate(false);try{get();preview.setEnabled(voice.installed());progress.setValue(100);progress.setString("설치 완료");status.setText("설치 완료. TTS 켜기를 선택하고 설정을 저장하세요.");}catch(Exception error){progress.setString("설치 실패");status.setText("설치 실패. 로그를 확인하고 다시 시도하세요.");install.setEnabled(true);log.append("오류: "+(error.getCause()==null?error.getMessage():error.getCause().getMessage())+"\n");}}
             }.execute();
         });
         setContentPane(panel);pack();setLocationRelativeTo(null);
