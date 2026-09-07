@@ -13,6 +13,8 @@ public final class CodexPlugin implements LumiPlugin {
     private ExternalSpeech externalSpeech;
     private javax.swing.Timer screenWatchTimer;
     private AutoScreenWatch screenWatch;
+    private AutoScreenWatch selfTalk;
+    private boolean automaticDispatched;
     private final java.util.Map<Integer, ChatWindow> chats = new java.util.HashMap<>();
     private PluginUi.MenuHandle trayItem;
     private PluginUi.MenuHandle settingsButton;
@@ -41,23 +43,38 @@ public final class CodexPlugin implements LumiPlugin {
         context.onEdt(() -> {
             if(this.context!=context) return;
             screenWatch=new AutoScreenWatch(() -> ScreenWatchSettings.load(context.prefs()),
-                    () -> !context.focusActive() && !context.charactersHidden() && !context.bubbleVisible()
-                            && !context.mascots().isEmpty()
-                            && chats.values().stream().noneMatch(chat -> chat.isBusy() || chat.isVisible()),
+                    this::automaticReady,
                     () -> {
                         // One character/monitor per interval, preferring Lumi.
                         var candidates=context.mascots().stream().filter(m -> context.isCharacter(m.imageSet())).toList();
                         if(candidates.isEmpty()) return;
                         var target=candidates.stream().filter(m -> "Lumi".equalsIgnoreCase(m.imageSet())).findFirst().orElse(candidates.getFirst());
+                        automaticDispatched=true;
                         inspectDesktop(target.imageSet(),target.id(),true);
                     });
+            selfTalk=new AutoScreenWatch(()->SelfTalkSettings.load(context.prefs()).schedule(),this::automaticReady,()->{
+                var candidates=context.mascots().stream().filter(m->context.isCharacter(m.imageSet())).toList();
+                if(candidates.isEmpty())return;
+                var target=candidates.stream().filter(m->"Lumi".equalsIgnoreCase(m.imageSet())).findFirst().orElse(candidates.getFirst());
+                automaticDispatched=true;
+                ChatWindow chat=chats.get(target.id());
+                if(chat==null || !chat.isDisplayable()){chat=new ChatWindow(context,target.imageSet(),target.id(),this::openSettings,this::refreshCancelMenu,voice);chats.put(target.id(),chat);}
+                chat.selfTalk();
+            });
             screenWatchTimer=new javax.swing.Timer(1000,event -> {
                 if(this.context!=context) return;
-                try { screenWatch.tick(); } catch(Exception error) { context.log().warning(error.toString()); }
+                automaticDispatched=false;
+                try { selfTalk.tick(); screenWatch.tick(); } catch(Exception error) { context.log().warning(error.toString()); }
             });
             screenWatchTimer.start();
         });
         context.log().info("Lumi Codex settings plugin started.");
+    }
+
+    private boolean automaticReady() {
+        return context!=null && !automaticDispatched && !context.focusActive() && !context.charactersHidden()
+                && !context.bubbleVisible() && !context.isSpeaking() && !voice.canStop()
+                && !context.mascots().isEmpty() && chats.values().stream().noneMatch(chat->chat.isBusy() || chat.isVisible());
     }
 
     private void refreshCancelMenu() {
@@ -123,7 +140,7 @@ public final class CodexPlugin implements LumiPlugin {
         if (desktopItem != null) desktopItem.remove();
         if (externalSpeech != null) externalSpeech.close();
         if (voice != null) voice.close();
-        active.onEdt(() -> { if(screenWatchTimer!=null) screenWatchTimer.stop(); if(screenWatch!=null) screenWatch.stop(); chats.values().forEach(ChatWindow::dispose); chats.clear(); if (window != null) { window.dispose(); window = null; } });
+        active.onEdt(() -> { if(screenWatchTimer!=null) screenWatchTimer.stop(); if(screenWatch!=null) screenWatch.stop(); if(selfTalk!=null)selfTalk.stop(); chats.values().forEach(ChatWindow::dispose); chats.clear(); if (window != null) { window.dispose(); window = null; } });
         active.log().info("Lumi Codex settings plugin stopped.");
     }
 }

@@ -122,6 +122,8 @@ public final class ChatWindow extends JDialog {
 
     private void submit() { submit(input.getText().strip(), false); }
 
+    public void selfTalk(){submit(SelfTalkSettings.prompt(),false,true);}
+
     public void inspectDesktop() { inspectDesktop(false); }
 
     public void inspectDesktop(boolean automatic) {
@@ -152,7 +154,8 @@ public final class ChatWindow extends JDialog {
         current.prepareTurn();
         input.setText(""); input.setEnabled(false); send.setEnabled(false); setVisible(false);
         status.setText("답변을 준비하고 있습니다…");
-        if(!automatic) context.showBusyFor(mascotId,"생각 중…");
+        // Screen replies wait for existing bubbles; a busy bubble here would block our own reply.
+        if(!automatic && !inspectScreen) context.showBusyFor(mascotId,"생각 중…");
         worker=new SwingWorker<>() {
             protected String doInBackground() throws Exception {
                 String image=inspectScreen?DesktopCapture.capture(captureAnchor):null;
@@ -162,11 +165,14 @@ public final class ChatWindow extends JDialog {
                 if(disposed || isCancelled()) return;
                 try {
                     String reply=ScreenReaction.visibleReply(get(),automatic);
+                    if(automatic && !inspectScreen && (!SelfTalkSettings.load(context.prefs()).enabled() || context.focusActive() || context.charactersHidden())) {
+                        input.setEnabled(true);syncSend();return;
+                    }
                     // Show voiced replies when playback starts; text-only replies remain immediate.
                     if(!reply.isBlank() && records.current(imageSet,history.session())) {
-                        try {records.append(imageSet,history.session(),inspectScreen?"[화면 같이 보기]":text,reply);}
+                        try {records.append(imageSet,history.session(),inspectScreen?"[화면 같이 보기]":automatic?"[AI 자동 혼잣말]":text,reply);}
                         catch(java.io.IOException error){context.log().warning("대화 기록 저장 실패: "+error);status.setToolTipText("답변은 생성했지만 기록 저장에 실패했습니다.");}
-                        if(inspectScreen)voice.screenReply(reply,imageSet,mascotId);
+                        if(inspectScreen || automatic)voice.screenReply(reply,imageSet,mascotId);
                         else voice.reply(reply,imageSet,mascotId);
                     }
                     status.setText("Enter로 전송 · Esc로 닫기");

@@ -61,8 +61,20 @@ public final class ModelSettingsPanel extends JPanel implements AutoCloseable {
             } catch(Exception error) { autoStatus.setText("간격은 10~3600초 사이의 정수로 입력해 주세요."); }
         });
         c.gridy=9; c.anchor=GridBagConstraints.EAST; c.fill=GridBagConstraints.NONE; form.add(saveAuto,c);
+        SelfTalkSettings selfSettings=SelfTalkSettings.load(context.prefs());
+        JCheckBox selfEnabled=new JCheckBox("AI 자동 혼잣말",selfSettings.enabled());
+        JSpinner selfInterval=new JSpinner(new SpinnerNumberModel(selfSettings.intervalSeconds(),SelfTalkSettings.MIN_SECONDS,SelfTalkSettings.MAX_SECONDS,1));
+        selfInterval.setEditor(new JSpinner.NumberEditor(selfInterval,"0"));
+        JPanel selfRow=new JPanel(new FlowLayout(FlowLayout.LEFT,8,0));selfRow.add(selfEnabled);selfRow.add(new JLabel("간격"));selfRow.add(selfInterval);selfRow.add(new JLabel("초 (30~3600)"));
+        c.gridy=10;c.anchor=GridBagConstraints.WEST;c.fill=GridBagConstraints.HORIZONTAL;form.add(new JSeparator(),c);
+        c.gridy=11;form.add(selfRow,c);
+        JLabel selfStatus=new JLabel("기본 꺼짐 · 화면 캡처 없이 말을 생성하며 Codex 사용량이 적용됩니다.");
+        c.gridy=12;form.add(selfStatus,c);
+        JButton selfSave=new JButton("혼잣말 설정 저장");
+        selfSave.addActionListener(event->{try{selfInterval.commitEdit();new SelfTalkSettings(selfEnabled.isSelected(),((Number)selfInterval.getValue()).intValue()).save(context.prefs());selfStatus.setText("저장했습니다. 설정한 간격 후부터 한가할 때 먼저 말을 겁니다.");}catch(Exception error){selfStatus.setText("간격은 30~3600초 사이의 정수로 입력해 주세요.");}});
+        c.gridy=13;c.anchor=GridBagConstraints.EAST;form.add(selfSave,c);
         updates=new UpdatePanel(context.descriptor().version);
-        c.gridy=10; c.anchor=GridBagConstraints.WEST; c.fill=GridBagConstraints.HORIZONTAL; form.add(updates,c);
+        c.gridy=14; c.anchor=GridBagConstraints.WEST; c.fill=GridBagConstraints.HORIZONTAL; form.add(updates,c);
         add(form,BorderLayout.NORTH);
         refreshModels();
     }
