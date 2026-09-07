@@ -20,6 +20,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$installer = Join-Path $
 ```
 
 설치 후 꼬미를 다시 실행하고 **설정 → 모드 → Lumi Codex**를 켜세요. 같은 명령으로 업데이트할 수 있습니다.
+
 설치 경로를 찾지 못하면 명령 끝의 `& $installer` 뒤, 마지막 큰따옴표 안에 `-LumiHome '꼬미 설치 경로'`를 추가하세요.
 
 ## 사용
