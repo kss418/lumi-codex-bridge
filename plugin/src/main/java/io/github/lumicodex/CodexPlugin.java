@@ -11,6 +11,7 @@ public final class CodexPlugin implements LumiPlugin {
     private SettingsWindow window;
     private LocalTtsService voice;
     private ExternalSpeech externalSpeech;
+    private DoubleClickChat doubleClickChat;
     private javax.swing.Timer screenWatchTimer;
     private AutoScreenWatch screenWatch;
     private AutoScreenWatch selfTalk;
@@ -27,6 +28,7 @@ public final class CodexPlugin implements LumiPlugin {
         this.context = context;
         voice = new LocalTtsService(context);
         externalSpeech = new ExternalSpeech(context,voice::speak);
+        doubleClickChat = new DoubleClickChat(context,this::openChat);
         trayItem = context.addTrayItem("Lumi Codex 설정", this::openSettings);
         settingsButton = context.addSettingsButton("Lumi Codex 설정", this::openSettings);
         chatItem = context.addCharacterMenuItem("대화하기", context::isCharacter,
@@ -139,6 +141,7 @@ public final class CodexPlugin implements LumiPlugin {
         if (cancelItem != null) cancelItem.remove();
         if (desktopItem != null) desktopItem.remove();
         if (externalSpeech != null) externalSpeech.close();
+        if (doubleClickChat != null) doubleClickChat.close();
         if (voice != null) voice.close();
         active.onEdt(() -> { if(screenWatchTimer!=null) screenWatchTimer.stop(); if(screenWatch!=null) screenWatch.stop(); if(selfTalk!=null)selfTalk.stop(); chats.values().forEach(ChatWindow::dispose); chats.clear(); if (window != null) { window.dispose(); window = null; } });
         active.log().info("Lumi Codex settings plugin stopped.");

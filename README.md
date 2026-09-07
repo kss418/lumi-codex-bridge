@@ -26,6 +26,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$installer = Join-Path $
 
 ## 사용
 
+- **캐릭터 더블클릭:** 대화창 열기
 - **캐릭터 우클릭:** 대화하기, 생성 취소, 화면 같이 보기
 - **트레이 아이콘 우클릭 → Lumi Codex 설정:** 모델·자동 화면 보기, 페르소나, TTS를 탭으로 설정
 - **TTS:** 한국어 루미 보이스팩을 설치한 뒤 TTS 설정에서 로컬 TTS를 설치하고 켜세요. 의존성은 설치 버튼을 눌렀을 때만 다운로드합니다.

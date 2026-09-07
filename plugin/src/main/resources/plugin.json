@@ -1,7 +1,7 @@
 {
   "id": "lumi.codex",
   "name": "Lumi Codex",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Codex 모델 설정과 꼬미 우클릭 대화, 말풍선 응답을 제공합니다.",
   "dependencies": [],
   "api_version": 1,
