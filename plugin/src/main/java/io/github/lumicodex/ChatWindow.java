@@ -162,7 +162,8 @@ public final class ChatWindow extends JDialog {
                     String reply=ScreenReaction.visibleReply(get(),automatic);
                     // Show voiced replies when playback starts; text-only replies remain immediate.
                     if(!reply.isBlank()) {
-                        voice.reply(reply,imageSet,mascotId);
+                        if(inspectScreen)voice.screenReply(reply,imageSet,mascotId);
+                        else voice.reply(reply,imageSet,mascotId);
                     }
                     status.setText("Enter로 전송 · Esc로 닫기");
                 } catch(CancellationException ignored) {

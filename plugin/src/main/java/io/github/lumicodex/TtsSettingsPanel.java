@@ -5,9 +5,11 @@ import com.group_finity.mascot.lumi.plugin.Json;
 import javax.swing.*;
 import java.awt.*;
 
-public final class TtsSettingsWindow extends JFrame {
-    public TtsSettingsWindow(PluginContext context,LocalTtsService voice) {
-        super("루미 로컬 TTS 설정");setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+public final class TtsSettingsPanel extends JPanel implements AutoCloseable {
+    private final Timer playbackState;
+    private final LocalTtsService voice;
+    public TtsSettingsPanel(PluginContext context,LocalTtsService voice) {
+        super(new BorderLayout());this.voice=voice;
         JCheckBox enabled=new JCheckBox("TTS 켜기",voice.enabled());
         JComboBox<String> device=new JComboBox<>(new String[]{"auto","cpu","cuda"});device.setSelectedItem(context.prefs().get("tts.device","auto"));
         JLabel status=new JLabel(voice.installed()?"설치됨 — 켜면 다음 답변부터 읽습니다.":"미설치 — 설치 버튼을 눌렀을 때만 다운로드합니다.");
@@ -17,7 +19,7 @@ public final class TtsSettingsWindow extends JFrame {
         JButton preview=new JButton("미리듣기");preview.setEnabled(voice.installed());
         JButton save=new JButton("설정 저장");JButton stop=new JButton("재생 중지");
         stop.setEnabled(voice.canStop());
-        Timer playbackState=new Timer(200,event -> stop.setEnabled(voice.canStop()));
+        playbackState=new Timer(200,event -> stop.setEnabled(voice.canStop()));
         playbackState.start();
         JPanel panel=new JPanel(new BorderLayout(8,8));panel.setBorder(BorderFactory.createEmptyBorder(12,12,12,12));
         JPanel fields=new JPanel(new GridLayout(0,1,4,4));fields.add(enabled);
@@ -38,9 +40,6 @@ public final class TtsSettingsWindow extends JFrame {
                 });
                 stop.setEnabled(voice.canStop());
             } catch(Exception error) {status.setText(error.getMessage());preview.setEnabled(voice.installed());stop.setEnabled(voice.canStop());}
-        });
-        addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override public void windowClosed(java.awt.event.WindowEvent event) {playbackState.stop();voice.endPreviewSession();}
         });
         install.addActionListener(event -> {
             progress.setIndeterminate(true);progress.setString("설치 준비 중");
@@ -101,6 +100,7 @@ public final class TtsSettingsWindow extends JFrame {
                 protected void done(){progress.setIndeterminate(false);try{get();preview.setEnabled(voice.installed());progress.setValue(100);progress.setString("설치 완료");status.setText("설치 완료. TTS 켜기를 선택하고 설정을 저장하세요.");}catch(Exception error){progress.setString("설치 실패");status.setText("설치 실패. 로그를 확인하고 다시 시도하세요.");install.setEnabled(true);log.append("오류: "+(error.getCause()==null?error.getMessage():error.getCause().getMessage())+"\n");}}
             }.execute();
         });
-        setContentPane(panel);pack();setLocationRelativeTo(null);
+        add(panel,BorderLayout.CENTER);
     }
+    @Override public void close(){playbackState.stop();voice.endPreviewSession();}
 }
