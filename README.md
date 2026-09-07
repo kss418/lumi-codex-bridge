@@ -2,7 +2,7 @@
 
 Little LUMI(꼬미)와 Codex를 연결하는 Java 25 플러그인과 Python 3.12 브릿지 프로젝트입니다.
 
-현재 Python Codex 클라이언트를 구현했으며, Java 플러그인 연동은 아직 구현하지 않았습니다.
+현재 Python Codex 클라이언트와 Java 모델 설정창을 구현했습니다. Java와 Python 사이의 연결은 아직 구현하지 않았습니다.
 
 ## 개발 환경
 
@@ -23,7 +23,7 @@ Little LUMI(꼬미)와 Codex를 연결하는 Java 25 플러그인과 Python 3.12
 - `tests/`: 모델과 추론 강도 선택 기능 테스트
 - `dist/`: 빌드 결과물. Git 추적에서 제외됩니다.
 
-Java 소스를 추가한 뒤 레포 루트에서 다음 명령으로 빌드합니다.
+레포 루트에서 다음 명령으로 Java 플러그인을 빌드합니다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/build-plugin.ps1
@@ -128,3 +128,32 @@ Java 입력은 전용 스레드에서 읽고, Codex 요청은 단일 처리 루�
 - `shutdown` 이전에 받은 요청을 처리한 뒤 종료합니다. 생성 중 즉시 취소는 하지 않습니다.
 - stdin이 닫혀도 이미 받은 요청을 모두 처리한 뒤 종료합니다.
 - 이 순차 처리 보장은 `--stdio` 경로에 적용됩니다. `CodexClient` 메서드를 여러 스레드에서 직접 동시에 호출하면 안 됩니다.
+
+## Java 모델 설정창
+
+플러그인 설치 후 트레이의 **Codex 모델 설정** 또는 설정 → 모드의 해당 설정 버튼으로 엽니다.
+
+- 모델과 추론 강도를 선택하고 **저장**을 누릅니다.
+- 모델별 지원 추론 강도만 표시합니다. 모델을 바꾸면 추론 강도는 기본값으로 돌아갑니다.
+- **Codex 기본값 사용**을 선택하면 빈 문자열로 저장합니다.
+- 저장은 `PluginContext.prefs()`의 `model`, `effort` 키를 사용합니다. 본체 공용 설정이나 Codex 전역 설정은 수정하지 않습니다.
+- 현재 목록은 Codex `model/list`에서 조회해 `models.json`으로 JAR에 포함한 스냅샷입니다. 설정창을 열 때 자동 갱신하지 않습니다.
+- 목록에 없는 저장 모델은 다른 모델을 선택하기 전까지 저장 버튼을 비활성화합니다.
+- Python 대화에 저장값을 전달하는 기능, 대화 UI와 자동 모드 설치는 아직 없습니다.
+
+모델 목록 갱신 및 빌드:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/refresh-models.ps1
+powershell -ExecutionPolicy Bypass -File scripts/build-plugin.ps1
+```
+
+주요 파일:
+
+- `CodexPlugin.java`: 메뉴 등록과 창 수명 관리
+- `SettingsWindow.java`: 선택창과 모드 전용 설정 저장
+- `plugin.json`: 플러그인 등록 정보
+- `models.json`: 모델과 지원 추론 강도 목록
+- 빌드 결과: `dist/lumi-codex/plugins/lumi-codex.jar`
+
+설정창 자체는 모델을 호출하지 않으며, 현재 메타데이터의 `network`는 false입니다.
